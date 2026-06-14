@@ -1,0 +1,8 @@
+{
+  "source_system": "unknown_siem_vendor_v4",
+  "event_id": "abc123",
+  "timestamp": "2026-06-15T14:37:00Z",
+  "rule": "noisy_detection_42",
+  "subject": {"user": "u_acct_lead"},
+  "summary": "Generic sign-on anomaly from an unmapped SIEM."
+}

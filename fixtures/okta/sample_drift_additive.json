@@ -1,0 +1,28 @@
+{
+  "uuid": "okta_evt_drift_additive_0001",
+  "published": "2026-06-15T14:36:11.000Z",
+  "eventType": "policy.evaluate_sign_on",
+  "severity": "HIGH",
+  "displayMessage": "Sign-on policy evaluated; impossible travel signal",
+  "actor": {
+    "id": "u_acct_lead",
+    "alternateId": "acct.lead@example.invalid",
+    "displayName": "Account Lead",
+    "type": "User",
+    "_experimental_actor_lineage_id": "lin_9921"
+  },
+  "client": {
+    "ipAddress": "198.51.100.42",
+    "userAgent": "Mozilla/5.0",
+    "geographicalContext": {
+      "country": "BG",
+      "city": "Sofia",
+      "state": "Sofia-grad",
+      "_continent_v2_tag": "EU"
+    },
+    "_experimental_tracing_id": "trc_44ab"
+  },
+  "outcome": {"result": "CHALLENGE"},
+  "_rule_id": "okta.impossible_travel.v3",
+  "_v2_experimental_signal_block": {"score": 7.4}
+}

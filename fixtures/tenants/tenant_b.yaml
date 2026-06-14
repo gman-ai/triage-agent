@@ -1,0 +1,27 @@
+tenant_id: tenant_b
+display_name: Globex Holdings
+soft_cap_pct: 0.80
+hard_cap_pct: 1.00
+daily_budget_usd: 100.0
+notes: |
+  Tenant B fixture. Identity IDs and asset IDs collide on purpose with
+  tenant_a so the isolation gate test exercises the case the production
+  failure mode actually looks like: same string, different owner.
+
+seeded_identities:
+  - user_id: u_acct_lead
+    role: account_lead
+    department: research
+    mfa_enabled: false
+
+seeded_assets:
+  - asset_id: srv_billing_01
+    asset_type: service
+    role: ledger_writer
+    criticality: high
+    owner_team: corp_systems
+
+seeded_iocs:
+  - value: 198.51.100.42
+    type: ip
+    reputation: known_malicious

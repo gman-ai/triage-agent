@@ -1,0 +1,49 @@
+version: "1.0"
+notes: |
+  Per-family InvestigationPlan templates per RECONCILED §5.1 (R8).
+  T1 selects the template matching CanonicalAlertEvent.rule_family and emits
+  an InvestigationPlan; the enrichment fan-out reads required + optional and
+  fetches only those sources. T2 may extend via request_additional_source.
+  These are conservative starting points, not policy; production tuning is
+  detection-engineering work (DESIGN ONLY item #15).
+
+families:
+  impossible_travel:
+    required_sources: [identity_store, historical]
+    optional_sources: [asset_cmdb, threat_intel]
+    expected_fact_categories: [user_baseline, geo_anomaly, login_history]
+    rationale: >-
+      User login baseline and recent login pattern are the discriminators;
+      threat intel on the source IP supports the geo anomaly.
+
+  ransomware:
+    required_sources: [asset_cmdb, threat_intel, historical]
+    optional_sources: [identity_store, runbook]
+    expected_fact_categories: [asset_criticality, ioc_reputation, prior_incidents]
+    rationale: >-
+      Asset criticality plus IOC reputation plus prior incidents drive the
+      verdict; runbook seeded for action recommendation.
+
+  c2_callback:
+    required_sources: [threat_intel, log_search, asset_cmdb]
+    optional_sources: [historical]
+    expected_fact_categories: [domain_reputation, egress_pattern, asset_role]
+    rationale: >-
+      Domain or IP reputation, network egress pattern, and asset role
+      together determine the verdict; identity store is not on the path.
+
+  dns_exfil:
+    required_sources: [threat_intel, log_search, historical]
+    optional_sources: [identity_store]
+    expected_fact_categories: [query_reputation, volume_baseline, recurrence]
+    rationale: >-
+      DNS query reputation, volume baseline against the asset, and recurrence
+      pattern across the time window.
+
+  privilege_escalation:
+    required_sources: [identity_store, historical, asset_cmdb]
+    optional_sources: [runbook]
+    expected_fact_categories: [role_lineage, prior_grants, asset_role]
+    rationale: >-
+      Role lineage plus prior grant pattern plus asset role; runbook seeded
+      for the response action.

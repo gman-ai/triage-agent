@@ -1,0 +1,26 @@
+{
+  "uuid": "okta_evt_clean_0001",
+  "published": "2026-06-15T14:32:11.000Z",
+  "eventType": "policy.evaluate_sign_on",
+  "severity": "HIGH",
+  "displayMessage": "Sign-on policy evaluated; impossible travel signal",
+  "actor": {
+    "id": "u_acct_lead",
+    "alternateId": "acct.lead@example.invalid",
+    "displayName": "Account Lead",
+    "type": "User"
+  },
+  "client": {
+    "ipAddress": "198.51.100.42",
+    "userAgent": "Mozilla/5.0",
+    "geographicalContext": {
+      "country": "BG",
+      "city": "Sofia",
+      "state": "Sofia-grad"
+    }
+  },
+  "outcome": {"result": "CHALLENGE"},
+  "transaction": {"id": "txn_001"},
+  "_rule_id": "okta.impossible_travel.v3",
+  "_detected_at": "2026-06-15T14:32:10.500Z"
+}

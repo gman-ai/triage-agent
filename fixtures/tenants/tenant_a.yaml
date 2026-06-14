@@ -1,0 +1,27 @@
+tenant_id: tenant_a
+display_name: Northwind Industries
+soft_cap_pct: 0.80
+hard_cap_pct: 1.00
+daily_budget_usd: 50.0
+notes: |
+  Tenant A fixture. Uses identical entity IDs to tenant_b on purpose so that
+  cross-tenant isolation tests detect leakage that would not be visible if
+  the test tenants used disjoint IDs.
+
+seeded_identities:
+  - user_id: u_acct_lead
+    role: account_lead
+    department: finance
+    mfa_enabled: true
+
+seeded_assets:
+  - asset_id: srv_billing_01
+    asset_type: service
+    role: billing_api
+    criticality: critical
+    owner_team: payments
+
+seeded_iocs:
+  - value: 198.51.100.42
+    type: ip
+    reputation: unknown
