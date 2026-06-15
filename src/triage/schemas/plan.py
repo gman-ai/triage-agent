@@ -32,7 +32,7 @@ SourceType = Literal[
 PlanFallback = Literal["proceed_with_partial", "request_more", "needs_human"]
 
 StorageTier = Literal["hot", "warm", "cold"]
-# R9 §5.1: where the retrieval lives in DataBahn's tiered pipeline.
+# R9 §5.1: where the retrieval lives in the tiered telemetry pipeline.
 #   hot  = SIEM-resident / indexed / fast (recent identity, current alerts, threat intel)
 #   warm = pipeline-resident operational logs (queryable, not SIEM-indexed)
 #   cold = compliance archive (badge logs, retention-required, on-demand pull)

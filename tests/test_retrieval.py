@@ -18,6 +18,7 @@ from triage.enrichment import (
     asset_cmdb,
     historical,
     identity_store,
+    log_search,
     runbook,
     threat_intel,
 )
@@ -34,6 +35,7 @@ ALL_SOURCES = [
     ("historical", historical.INSTANCE, "warm", 10),
     ("threat_intel", threat_intel.INSTANCE, "hot", 20),
     ("runbook", runbook.INSTANCE, "warm", 3),
+    ("log_search", log_search.INSTANCE, "warm", 50),
 ]
 
 
@@ -109,6 +111,49 @@ def test_threat_intel_evidence_fields_populated_per_d14():
     # Multi-provider conflict surfaces in conflicts[].
     assert len(primary.conflicts) >= 1
     assert primary.conflicts[0]["provider"] == "feed_beta"
+
+
+def test_log_search_clean_path_returns_time_localized_lines():
+    """log_search seed for tenant_a has 3 lines around the event (offsets
+    -30, 0, +20). Time-locality sort puts |offset|=0 first.
+    """
+    refs = log_search.INSTANCE.fetch(_query())
+    assert len(refs) == 3
+    # Sorted by absolute offset_seconds ascending: 0 first, then 20, then 30.
+    offsets = [r.payload["offset_seconds"] for r in refs]
+    assert offsets == [0, 20, -30]
+    for ref in refs:
+        assert ref.storage_tier == "warm"
+        assert ref.source_type == "log_search"
+
+
+def test_log_search_synth_burst_truncates_at_50_with_flag():
+    """500 synthesized lines → cap at 50 with retrieval_truncated=True and the
+    sort_key disclosure. Matches §4.8 truncation semantics for the 6th source.
+    """
+    query = SourceQuery(
+        tenant_id="tenant_a",
+        alert_id="alert_log_burst",
+        ioc="198.51.100.42",
+        extra={"synth_line_count": 500},
+    )
+    refs = log_search.INSTANCE.fetch(query)
+    assert len(refs) == 50
+    for ref in refs:
+        assert ref.retrieval_truncated is True
+        assert ref.total_available == 500
+        assert "time_locality" in (ref.truncation_sort_key or "")
+
+
+def test_log_search_failure_modes_raise_typed_exceptions():
+    query = _query()
+    with pytest.raises(RetrievalTimeoutError):
+        log_search.INSTANCE.fetch(query, failure_mode="timeout")
+    with pytest.raises(RetrievalUpstreamError) as upstream_info:
+        log_search.INSTANCE.fetch(query, failure_mode="upstream_5xx")
+    assert 500 <= upstream_info.value.status_code < 600
+    with pytest.raises(MalformedRetrievalError):
+        log_search.INSTANCE.fetch(query, failure_mode="malformed")
 
 
 def test_threat_intel_stale_clean_is_not_treated_as_benign_signal():

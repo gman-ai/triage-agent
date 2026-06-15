@@ -114,6 +114,38 @@ def test_per_source_failure_is_contained_and_logged():
     assert len(asset_refs) >= 1
 
 
+def test_per_source_failure_span_carries_full_error_detail():
+    """Per Codex Day 2 fold-in / Day 4 directive: when a source fails inside
+    plan-gated fan-out, the bundle's span carries source_type, storage_tier,
+    failure_mode, exception_class, exception_message, status_code (when HTTP),
+    attempt_count, latency_ms. The verdict-layer `enrichments_failed` stays
+    flat; this is the SRE-facing surface.
+    """
+    registry = PlanTemplateRegistry()
+    plan = registry.build_plan("ransomware", "P1")
+    sources = build_default_registry()
+    bundle = run_fanout(
+        plan,
+        _query(),
+        sources,
+        failure_modes={"threat_intel": "upstream_5xx"},
+    )
+
+    failed_spans = [s for s in bundle.spans if s["source_type"] == "threat_intel"]
+    assert len(failed_spans) == 1
+    span = failed_spans[0]
+    assert span["source_type"] == "threat_intel"
+    assert span["storage_tier"] == "hot"
+    assert span["failure_mode"] == "upstream_5xx"
+    assert span["exception_class"] == "RetrievalUpstreamError"
+    assert span["exception_message"] is not None
+    assert isinstance(span["status_code"], int)
+    assert 500 <= span["status_code"] < 600
+    assert span["attempt_count"] == 1
+    assert isinstance(span["latency_ms"], int)
+    assert "threat_intel" in bundle.enrichments_failed
+
+
 def test_evidence_bundle_retrieval_ids_form_allowlist():
     """The bundle's retrieval_ids() set is what the reasoning agent will
     cite from. Every retrieval has a unique id; the set has no duplicates.

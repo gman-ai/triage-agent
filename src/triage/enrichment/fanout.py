@@ -83,10 +83,12 @@ def run_fanout(
                         ended_at=ended_at,
                         latency_ms=int((ended_at - started_at).total_seconds() * 1000),
                         outcome=_classify_outcome(exc),
+                        failure_mode=mode,
                         retrieved_count=0,
-                        retry_count=0,
-                        error_type=type(exc).__name__,
-                        error_message=truncate_error_message(str(exc)),
+                        attempt_count=1,
+                        exception_class=type(exc).__name__,
+                        exception_message=truncate_error_message(str(exc)),
+                        status_code=_extract_status_code(exc),
                     ).to_audit_row()
                 )
                 continue
@@ -100,7 +102,9 @@ def run_fanout(
                     ended_at=ended_at,
                     latency_ms=int((ended_at - started_at).total_seconds() * 1000),
                     outcome="ok",
+                    failure_mode=mode,
                     retrieved_count=len(refs),
+                    attempt_count=1,
                 ).to_audit_row()
             )
 
@@ -116,12 +120,15 @@ def run_fanout(
                     "source_type": source_type,
                     "storage_tier": None,
                     "outcome": "rejected",
+                    "failure_mode": "clean",
                     "latency_ms": 0,
-                    "retry_count": 0,
-                    "error_type": "UnregisteredSource",
-                    "error_message": (
+                    "retrieved_count": 0,
+                    "attempt_count": 0,
+                    "exception_class": "UnregisteredSource",
+                    "exception_message": (
                         f"source {source_type!r} is in plan but not in registry"
                     ),
+                    "status_code": None,
                 }
             )
             continue
@@ -132,13 +139,16 @@ def run_fanout(
                     "source_type": source_type,
                     "storage_tier": src.storage_tier,
                     "outcome": "rejected",
+                    "failure_mode": "clean",
                     "latency_ms": 0,
-                    "retry_count": 0,
-                    "error_type": "TierPolicyExcluded",
-                    "error_message": (
+                    "retrieved_count": 0,
+                    "attempt_count": 0,
+                    "exception_class": "TierPolicyExcluded",
+                    "exception_message": (
                         f"source tier {src.storage_tier!r} not in plan "
                         f"tier_preference {plan.tier_preference!r}"
                     ),
+                    "status_code": None,
                 }
             )
 
@@ -156,6 +166,11 @@ def _classify_outcome(exc: Exception) -> str:
     return "upstream_error"
 
 
+def _extract_status_code(exc: Exception) -> int | None:
+    """Carries HTTP status code on RetrievalUpstreamError; None otherwise."""
+    return getattr(exc, "status_code", None)
+
+
 def build_default_registry() -> dict[SourceType, EnrichmentSource]:
     """Default per-process source registry.
 
@@ -167,6 +182,7 @@ def build_default_registry() -> dict[SourceType, EnrichmentSource]:
         asset_cmdb,
         historical,
         identity_store,
+        log_search,
         runbook,
         threat_intel,
     )
@@ -177,4 +193,5 @@ def build_default_registry() -> dict[SourceType, EnrichmentSource]:
         historical.INSTANCE.source_type: historical.INSTANCE,
         threat_intel.INSTANCE.source_type: threat_intel.INSTANCE,
         runbook.INSTANCE.source_type: runbook.INSTANCE,
+        log_search.INSTANCE.source_type: log_search.INSTANCE,
     }
