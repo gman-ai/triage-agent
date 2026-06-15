@@ -16,7 +16,7 @@ acts on:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 from triage.classifier.pre_classify import T1Classification
@@ -43,6 +43,11 @@ class RouteDecision:
     outcome: RouteOutcome
     needs_human_urgent: bool = False
     reason: str = ""
+    metrics: list[str] = field(default_factory=list)
+    # Operator-facing telemetry counters per RECONCILED §4.6. Names match the
+    # contract: `budget_exceeded_p0_override` fires when budget is exhausted
+    # AND the alert is forced through to T2 anyway. The audit ledger persists
+    # them on the triage row so a per-tenant cost dashboard can sum them up.
 
     @property
     def hits_llm(self) -> bool:
@@ -94,6 +99,7 @@ def route(
             outcome="t2_urgent",
             needs_human_urgent=True,
             reason="budget exhausted; severity-aware override forces T2 + urgent",
+            metrics=["budget_exceeded_p0_override"],
         )
 
     is_deep = (
@@ -146,6 +152,7 @@ def _route_without_t1(
             outcome="t2_urgent",
             needs_human_urgent=True,
             reason="budget exhausted; severity-aware override forces T2",
+            metrics=["budget_exceeded_p0_override"],
         )
     if alert.severity_hint == "P0" or (
         alert.severity_hint == "P1" and alert.rule_family in DEEP_FAMILIES

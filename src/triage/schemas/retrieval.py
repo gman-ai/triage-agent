@@ -56,12 +56,16 @@ class EvidenceBundle(BaseModel):
 
     retrievals[] is the allowlist for the reasoning agent: every fact emitted
     by the LLM must cite a retrieval_id that appears in this list.
-    enrichments_failed[] surfaces per-source failures so the verdict can
-    degrade gracefully (degraded: retrieval_partial per §2).
+    enrichments_failed[] is the analyst-facing flat list keeping the verdict
+    schema clean per §2 degraded taxonomy.
+    spans[] is the operator-facing per-source detail (error_type, message,
+    retry_count, latency_ms) that an SRE uses to reconstruct WHY a source
+    failed. Codex Day 2 review folded this in on Day 4.
     """
 
     retrievals: list[RetrievalRef] = Field(default_factory=list)
     enrichments_failed: list[str] = Field(default_factory=list)
+    spans: list[dict] = Field(default_factory=list)
 
     def by_source(self, source_type: SourceType) -> list[RetrievalRef]:
         return [r for r in self.retrievals if r.source_type == source_type]

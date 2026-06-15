@@ -17,9 +17,14 @@ Behavior:
 - Failure containment: each source's exception is captured into
   EvidenceBundle.enrichments_failed[] and the fan-out continues. The
   pipeline never raises uncaught at this boundary.
+- Observability (Codex Day 2 review fold-in): each source attempt emits
+  an EnrichmentSpan with error_type, error_message, retry_count, and
+  latency_ms. The flat enrichments_failed[] keeps the verdict schema
+  clean; the spans[] carry the SRE-facing detail.
 
 The result is an `EvidenceBundle` with the merged retrievals[] (the
-retrieval_id allowlist for the LLM) and any per-source failure flags.
+retrieval_id allowlist for the LLM), per-source failure flags, and a
+spans list the audit ledger persists.
 
 Call-order observability:
 - Tests can pass a `call_recorder` list; the orchestrator appends each
@@ -29,9 +34,11 @@ Call-order observability:
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import MutableSequence
 
 from triage.enrichment.base import EnrichmentSource, FailureMode, SourceQuery
+from triage.observability.spans import EnrichmentSpan, truncate_error_message
 from triage.schemas.plan import InvestigationPlan, SourceType
 from triage.schemas.retrieval import EvidenceBundle, RetrievalRef
 
@@ -62,15 +69,40 @@ def run_fanout(
             if call_recorder is not None:
                 call_recorder.append(source_type)
             mode: FailureMode = failure_modes.get(source_type, "clean")
+            started_at = datetime.now(UTC)
             try:
                 refs: list[RetrievalRef] = src.fetch(query, failure_mode=mode)
             except Exception as exc:
+                ended_at = datetime.now(UTC)
                 bundle.enrichments_failed.append(source_type)
-                # The fan-out swallows by design; the orchestrator one level up
-                # uses enrichments_failed[] to set degraded: retrieval_partial.
-                _ = exc
+                bundle.spans.append(
+                    EnrichmentSpan(
+                        source_type=source_type,
+                        storage_tier=src.storage_tier,
+                        started_at=started_at,
+                        ended_at=ended_at,
+                        latency_ms=int((ended_at - started_at).total_seconds() * 1000),
+                        outcome=_classify_outcome(exc),
+                        retrieved_count=0,
+                        retry_count=0,
+                        error_type=type(exc).__name__,
+                        error_message=truncate_error_message(str(exc)),
+                    ).to_audit_row()
+                )
                 continue
+            ended_at = datetime.now(UTC)
             bundle.retrievals.extend(refs)
+            bundle.spans.append(
+                EnrichmentSpan(
+                    source_type=source_type,
+                    storage_tier=src.storage_tier,
+                    started_at=started_at,
+                    ended_at=ended_at,
+                    latency_ms=int((ended_at - started_at).total_seconds() * 1000),
+                    outcome="ok",
+                    retrieved_count=len(refs),
+                ).to_audit_row()
+            )
 
     # Surface plan sources whose tier is NOT in tier_preference. The plan says
     # to fetch them, the tier policy says not to. The verdict needs to know.
@@ -79,11 +111,49 @@ def run_fanout(
         src = sources.get(source_type)
         if src is None:
             bundle.enrichments_failed.append(source_type)
+            bundle.spans.append(
+                {
+                    "source_type": source_type,
+                    "storage_tier": None,
+                    "outcome": "rejected",
+                    "latency_ms": 0,
+                    "retry_count": 0,
+                    "error_type": "UnregisteredSource",
+                    "error_message": (
+                        f"source {source_type!r} is in plan but not in registry"
+                    ),
+                }
+            )
             continue
         if src.storage_tier not in allowed_tiers:
             bundle.enrichments_failed.append(source_type)
+            bundle.spans.append(
+                {
+                    "source_type": source_type,
+                    "storage_tier": src.storage_tier,
+                    "outcome": "rejected",
+                    "latency_ms": 0,
+                    "retry_count": 0,
+                    "error_type": "TierPolicyExcluded",
+                    "error_message": (
+                        f"source tier {src.storage_tier!r} not in plan "
+                        f"tier_preference {plan.tier_preference!r}"
+                    ),
+                }
+            )
 
     return bundle
+
+
+def _classify_outcome(exc: Exception) -> str:
+    name = type(exc).__name__
+    if name == "RetrievalTimeoutError":
+        return "timeout"
+    if name == "RetrievalUpstreamError":
+        return "upstream_error"
+    if name == "MalformedRetrievalError":
+        return "malformed"
+    return "upstream_error"
 
 
 def build_default_registry() -> dict[SourceType, EnrichmentSource]:
