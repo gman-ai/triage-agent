@@ -43,6 +43,41 @@ def test_each_family_builds_a_valid_investigation_plan(plan_registry, family):
     assert plan.plan_template_version == "1.0"
 
 
+@pytest.mark.parametrize("family", REQUIRED_FAMILIES)
+def test_each_family_has_a_tier_preference(plan_registry, family):
+    """R9 / D33: every per-family template seeds an ordered tier_preference."""
+    plan = plan_registry.build_plan(rule_family=family, severity_hint="P2")
+    assert len(plan.tier_preference) >= 1
+    assert all(tier in {"hot", "warm", "cold"} for tier in plan.tier_preference)
+
+
+@pytest.mark.parametrize("family", REQUIRED_FAMILIES)
+def test_no_default_template_includes_cold_tier(plan_registry, family):
+    """D34: cold tier never appears in a default template's tier_preference.
+
+    Cold-tier retrieval is T2 plan-extension territory only — it requires an
+    explicit cost-justified rationale. Including it in a default would defeat
+    the cost-controlled routing story.
+    """
+    plan = plan_registry.build_plan(rule_family=family, severity_hint="P2")
+    assert "cold" not in plan.tier_preference, (
+        f"family={family!r} default template must not include 'cold' (D34)"
+    )
+
+
+def test_default_tier_preference_when_template_omits_it(plan_registry):
+    """An omitted tier_preference in a template falls back to the Pydantic default
+    (["hot", "warm", "cold"]). This test pins the loader's optional-pass behavior
+    so a future template revision that drops the field doesn't silently lose
+    the field on the resulting plan.
+    """
+    plan = plan_registry.build_plan("impossible_travel", "P1")
+    # impossible_travel explicitly seeds [hot]; this proves the loader is
+    # propagating the seed, not falling back to the Pydantic default of
+    # ["hot", "warm", "cold"].
+    assert plan.tier_preference == ["hot"]
+
+
 def test_impossible_travel_plan_excludes_runbook(plan_registry):
     plan = plan_registry.build_plan("impossible_travel", "P1")
     assert "runbook" not in plan.all_planned_sources()

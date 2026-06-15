@@ -45,7 +45,7 @@ class PlanTemplateRegistry:
         template = self.get(rule_family)
         if template is None:
             raise KeyError(f"no plan template for rule_family={rule_family!r}")
-        return InvestigationPlan(
+        kwargs = dict(
             plan_id=plan_id or str(uuid.uuid4()),
             alert_family=rule_family,
             severity_hint=severity_hint,
@@ -55,3 +55,9 @@ class PlanTemplateRegistry:
             rationale=template["rationale"].strip(),
             plan_template_version=self._version,
         )
+        # R9 / D33: tier_preference is an optional template field. When seeded,
+        # the loader propagates it; when omitted, the InvestigationPlan default
+        # ["hot", "warm", "cold"] applies.
+        if "tier_preference" in template:
+            kwargs["tier_preference"] = list(template["tier_preference"])
+        return InvestigationPlan(**kwargs)

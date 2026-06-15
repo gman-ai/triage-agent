@@ -31,6 +31,12 @@ SourceType = Literal[
 
 PlanFallback = Literal["proceed_with_partial", "request_more", "needs_human"]
 
+StorageTier = Literal["hot", "warm", "cold"]
+# R9 §5.1: where the retrieval lives in DataBahn's tiered pipeline.
+#   hot  = SIEM-resident / indexed / fast (recent identity, current alerts, threat intel)
+#   warm = pipeline-resident operational logs (queryable, not SIEM-indexed)
+#   cold = compliance archive (badge logs, retention-required, on-demand pull)
+
 
 class InvestigationPlan(BaseModel):
     plan_id: str
@@ -38,6 +44,10 @@ class InvestigationPlan(BaseModel):
     severity_hint: Severity
     required_sources: list[SourceType]
     optional_sources: list[SourceType] = Field(default_factory=list)
+    tier_preference: list[StorageTier] = Field(default_factory=lambda: ["hot", "warm", "cold"])
+    # R9 D33: ordered tier preference. Plan-gated fan-out attempts cheaper tiers
+    # first. Per-family default templates never include "cold" (D34); cold-tier
+    # retrieval is T2 plan-extension territory only.
     expected_fact_categories: list[str] = Field(default_factory=list)
     rationale: str
     fallback_strategy: PlanFallback = "proceed_with_partial"
