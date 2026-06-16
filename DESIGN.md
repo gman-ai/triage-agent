@@ -270,14 +270,34 @@ matrix. Production deployment adds one adapter per vendor; each adapter is
 
 The test suite runs without `ANTHROPIC_API_KEY`. Two LLM client
 implementations cover the test surface: `FixtureReplayClient` (digest-keyed
-captures) for single-pass tests, and `SequenceClient` (call-order returns)
-for multi-pass orchestration tests where intermediate retrieval IDs are
-non-deterministic. A single `AnthropicClient` instance is exercised in the
-walkthrough notebook to capture one live response; that response is
-serialized into `fixtures/llm_replays/` and replayed by subsequent runs. The
-eval harness uses `EvalSyntheticClient`, a deterministic synthetic that
-returns calibrated responses keyed on `alert_id` so the metrics report is
-reproducible on the panel's machine.
+captures) for single-pass tests where the request payload is fully
+deterministic, and `SequenceClient` (call-order returns) for multi-pass
+orchestration tests where intermediate retrieval IDs are non-deterministic.
+A single `AnthropicClient` instance is exercised by `scripts/capture_t3_
+fixture.py` to capture one live response; that response is serialized into
+`fixtures/llm_replays/` as authenticity evidence. The eval harness uses
+`EvalSyntheticClient`, a deterministic synthetic that returns calibrated
+responses keyed on `alert_id` so the metrics report is reproducible on the
+panel's machine.
+
+**Subtle architectural decision worth naming.** The walkthrough notebook's
+T3 escalation cell does NOT use `FixtureReplayClient` against the captured
+fixture, despite that being the surface where authenticity replay would
+naively belong. The T3 request payload includes the enrichment bundle, and
+the bundle carries non-deterministic fields (`retrieval_id` uses
+`uuid.uuid4()`; `fetched_at` uses `datetime.now(UTC)`). Every notebook
+execution produces a fresh bundle → fresh request digest → `FixtureReplayClient`
+would `FixtureMissingError` on every run that wasn't the one that captured
+the fixture. The cell instead loads the captured fixture's content from
+disk and replays it through `SequenceClient`, which is digest-agnostic. The
+fixture file stays in the repo with `live_api: true` + `captured_at` +
+real token counts as authenticity evidence; the response that gets replayed
+in the notebook IS the actual Opus output. `tests/test_notebook_executes.py`
+runs the notebook end-to-end on every `uv run pytest` to catch any future
+drift in this pattern. This is the lesson learned in Day 8 root-cause
+investigation; the digest-replay pattern only works when the request
+payload is fully deterministic, which fixed-input tests are but live-pipeline
+demos aren't.
 
 ## 6. Failure modes
 
