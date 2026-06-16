@@ -1,12 +1,21 @@
 # triage-agent
 
-A SecOps triage assistant that runs as an in-pipeline enrichment stage. Alerts
-flow through a normalization adapter, are grouped under storm bursts, route
-through a deterministic tier policy, are enriched by plan-gated fan-out over
-six structured sources, reasoned over by a single LLM agent with forced tool
-use, and validated against the retrieval bundle before being attached as
-`triage.*` fields downstream. Output is structured JSON for SIEM ingestion,
-not prose for a chat window.
+A SecOps triage service. The engine takes an alert in, runs normalization,
+storm grouping, deterministic routing, plan-gated enrichment across six
+structured sources, grounded reasoning with citation-support validation,
+and emits a structured `TriageVerdict`.
+
+The service is surface-agnostic: trigger and emit are pluggable bookends.
+Trigger can be automatic when an alert is created in the pipeline, or
+on-demand when an analyst requests triage by alert ID. The verdict can push
+back to the SIEM as `triage.*` fields on the alert record, or return via the
+API to a DataBahn surface. The engine in between is the same regardless of
+how it's invoked or where the verdict lands.
+
+Output is structured JSON: closed-vocabulary verdict, grounded
+observed_facts with citation-support validation, MITRE ATT&CK attack_chain
+mapping, and explicit blast_radius + reversible flags on every
+recommendation. Not prose for a chat window.
 
 Read [DESIGN.md](DESIGN.md) for the architecture, tradeoffs, and failure
 modes. Read [AI_TOOLS.md](AI_TOOLS.md) for where AI tools helped or hindered
