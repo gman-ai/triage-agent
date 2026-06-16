@@ -61,12 +61,18 @@ coverage.xml
 ehthumbs.db
 Thumbs.db
 
-# Secrets and env
+# Secrets and env (defense-in-depth: belt-and-suspenders patterns)
 .env
 .env.*
 !.env.example
 *.pem
 *.key
+key.docx
+*credentials*
+*secret*
+*api_key*
+*api-key*
+*apikey*
 credentials.json
 secrets.yaml
 

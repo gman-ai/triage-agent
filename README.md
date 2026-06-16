@@ -29,13 +29,16 @@ Requires Python 3.12 and [uv](https://docs.astral.sh/uv/).
 git clone <repo-url> triage-agent
 cd triage-agent
 uv sync --extra dev
-uv run pytest
-uv run eval
+uv run eval     # produces a report under eval/reports/
+uv run pytest   # full suite (170+ tests; ~0.5s)
 ```
 
-`uv run pytest` runs the full test suite (170+ tests; ~0.5s on a developer
-machine). `uv run eval` runs the gold + adversarial sets through the full
-pipeline and writes a Markdown metrics report to `eval/reports/`.
+`uv run eval` runs the gold + adversarial sets through the full pipeline
+and writes a Markdown metrics report to `eval/reports/`. Run eval before
+the first pytest in a fresh clone: one test
+(`test_reports_dir_has_at_least_one_eval_run`) skips if no report exists
+yet, so a fresh-clone `pytest`-first run shows 172 passed + 1 skipped
+instead of the full 173 passed.
 
 Neither command requires an Anthropic API key. The test suite uses
 `FixtureReplayClient` and `SequenceClient`; the eval harness uses
@@ -78,9 +81,10 @@ escalation.
 
 ## Design highlights
 
-- **Pipeline enrichment, not chatbot.** The verdict attaches as
-  `triage.*` fields to the in-flight alert; the analyst opens their
-  existing SIEM and sees the first-pass triage already done.
+- **Surface-agnostic triage service — trigger and emit are pluggable per
+  deployment.** Automatic from the pipeline OR on-demand by alert ID; verdict
+  pushes to the SIEM as `triage.*` fields OR returns via API. Same engine
+  regardless of how invoked or where the verdict lands.
 - **InvestigationPlan as a Pydantic field on T1 output.** Plan-gated
   fan-out fetches only the sources the plan names; T2 may request more
   via tool call when reasoning identifies a gap (bounded by per-tenant
@@ -93,8 +97,8 @@ escalation.
   "real ID, wrong content" attacks that existence-only validation misses.
 - **Audit by hash, raw payloads behind retention class.** The default
   retention class is `hash_only`; raw payloads land in `forensic_30d`
-  after regex-based redaction for AWS keys / bearer tokens / generic
-  API keys.
+  after regex-based redaction for AWS keys, AWS secrets, bearer tokens,
+  generic API keys, and email PII.
 
 ## Repository layout
 

@@ -32,6 +32,29 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 ENV_PATH = REPO_ROOT / ".env"
 FIXTURE_DIR = REPO_ROOT / "fixtures" / "llm_replays"
 
+# Anthropic published pricing as of build date, USD per million tokens.
+# Update this table when capturing against a different model snapshot.
+_MODEL_PRICING_PER_MTOK = {
+    # Opus 4.x family
+    "claude-opus-4-7": (15.00, 75.00),
+    "claude-opus-4-8": (15.00, 75.00),
+    # Sonnet 4.6
+    "claude-sonnet-4-6": (3.00, 15.00),
+    # Haiku 4.5
+    "claude-haiku-4-5-20251001": (0.25, 1.25),
+}
+
+
+def _cost_for(model: str, tokens_in: int, tokens_out: int) -> float:
+    if not model:
+        return 0.0
+    for prefix, (in_per_m, out_per_m) in _MODEL_PRICING_PER_MTOK.items():
+        if model.startswith(prefix):
+            return round(
+                (tokens_in * in_per_m + tokens_out * out_per_m) / 1_000_000, 6
+            )
+    return 0.0
+
 
 def _load_env_file(path: Path) -> None:
     """Minimal .env loader. KEY=VALUE per line; ignores comments + blanks."""
@@ -115,13 +138,16 @@ def main() -> int:
 
     FIXTURE_DIR.mkdir(parents=True, exist_ok=True)
     fixture_path = FIXTURE_DIR / f"{digest}.json"
+    computed_cost = _cost_for(response.model, response.tokens_in, response.tokens_out)
+    cost_usd = response.cost_usd if response.cost_usd else computed_cost
     fixture_payload = {
         "content": response.content,
         "stop_reason": response.stop_reason,
         "tool_calls": response.tool_calls,
         "tokens_in": response.tokens_in,
         "tokens_out": response.tokens_out,
-        "cost_usd": response.cost_usd,
+        "cost_usd": cost_usd,
+        "cost_computed_from": "tokens_in/out * published anthropic pricing",
         "model": response.model,
         "captured_at": captured_at.isoformat(),
         "live_api": True,
