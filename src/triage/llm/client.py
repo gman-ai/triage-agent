@@ -166,8 +166,13 @@ class AnthropicClient:
             system=request.system,
             messages=request.messages,
             max_tokens=request.max_tokens,
-            temperature=request.temperature,
         )
+        # Some Anthropic models (e.g. claude-opus-4-7 / 4-8) reject the
+        # `temperature` parameter as deprecated. Omit when the request
+        # carries the deterministic default; pass through for non-zero
+        # values where a caller is intentionally sampling.
+        if request.temperature and request.temperature > 0.0:
+            kwargs["temperature"] = request.temperature
         if request.tools:
             kwargs["tools"] = request.tools
         result = client.messages.create(**kwargs)

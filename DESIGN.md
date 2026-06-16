@@ -121,6 +121,41 @@ validation cannot.
 | Audit by hash | Default `retention_class: hash_only`; raw payloads only under `forensic_30d` with regex redaction | Reconstructable without becoming a data swamp of secrets, PII, and customer infra details |
 | Per-tenant correction loop | Soft-layer auto (operational alert + `degraded: tenant_calibration_warning` + verdict cap at `likely_*`); hard layer (`forced_human_review`) requires detection-eng ack | Lazy bulk-FP cannot poison routing; thoughtful corrections still change behavior |
 
+### 3.1 Two claims worth detailing
+
+**Audit reconstruction: stored verdict + hash chain.** Each triage decision
+writes one `AuditRow` (`src/triage/audit/ledger.py`) carrying the verdict
+itself (verdict, severity, confidence, observed_facts, inferences,
+recommendations, plan_extensions, model_chain), the `prompt_hash` over the
+exact LLM input, the `retrieval_bundle_hash` over the EvidenceBundle, and
+per-source `evidence_source_pointers[]`. `reconstruct_decision(triage_id)`
+returns the verdict directly from the row; verification is the hash chain.
+An auditor who keeps the seeded retrieval data can re-derive the bundle
+hash and confirm equivalence; without the data, the hash alone establishes
+non-tampering. Raw prompts and responses are NOT in the row by default —
+`retention_class: hash_only` is the default; `forensic_30d` is the opt-in
+path where raw payloads land AFTER regex-based redaction
+(AWS keys, AWS secrets, bearer tokens, generic API keys, email PII).
+`tests/test_audit_governance.py` exercises both paths and the round-trip
+equivalence claim.
+
+**Correction hard-layer: mechanism is present, governance is design-only.**
+The soft layer auto-fires once per-tenant per-rule-family disagreement
+crosses threshold: an operational alert (`correction_threshold_exceeded`),
+a `degraded: tenant_calibration_warning` flag, and a verdict cap at
+`likely_*` for that tenant/rule_family. The hard layer
+(`forced_human_review: true`) requires an explicit
+`force_review_ack(tenant_id, rule_family, engineer_id)` call to flip the
+flag — implemented as a typed endpoint
+(`src/triage/corrections/endpoint.py`) wired into FastAPI at
+`POST /api/v1/calibration/{tenant}/{rule_family}/force-review`. The
+prototype's stub flips the flag immediately on call; production governance
+(who is authorized to invoke, audit trail of the engineer's review, scope
+limits, expiration of the force-review, the workflow for clearing it once
+calibration recovers) is DESIGN ONLY item #4. The mechanism is intentionally
+isolated from the automatic soft layer so a single careless analyst session
+cannot disable automated triage for an entire rule family.
+
 ## 4. Tradeoffs
 
 ### 4.1 Verdict taxonomy: chose 3-class confirmed/likely/undetermined

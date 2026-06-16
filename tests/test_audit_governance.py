@@ -177,6 +177,63 @@ def test_redact_text_handles_aws_and_bearer():
     assert "bearer_token" in hits
 
 
+def test_redact_text_handles_email():
+    out, hits = redact_text("contact analyst.lead+oncall@example.invalid for review")
+    assert "analyst.lead+oncall@example.invalid" not in out
+    assert "[REDACTED]" in out
+    assert "email" in hits
+
+
+def test_forensic_retention_redacts_email_in_raw_prompt():
+    """The email pattern must scrub PII in forensic_30d-retained raw payloads.
+    Default hash_only retention persists no raw text, so this assertion is
+    specifically about the forensic path.
+    """
+    ledger = AuditLedger()
+    verdict = _verdict()
+    bundle = _bundle()
+    sensitive_prompt = (
+        "alert summary: failed login from acct.lead@example.invalid; "
+        "reporter: u_sre_lead@example.invalid"
+    )
+    row = ledger.record(
+        verdict=verdict,
+        bundle=bundle,
+        prompt_text=sensitive_prompt,
+        response_text="response",
+        validation_result="ok",
+        retention_class="forensic_30d",
+    )
+    assert row.retention_class == "forensic_30d"
+    assert row.raw_prompt is not None
+    assert "acct.lead@example.invalid" not in row.raw_prompt
+    assert "u_sre_lead@example.invalid" not in row.raw_prompt
+    assert "[REDACTED]" in row.raw_prompt
+    assert "email" in row.redaction_hits
+
+
+def test_hash_only_retention_persists_no_raw_payload_for_email_pii():
+    """Default retention class drops raw payloads entirely. Email PII in the
+    prompt cannot leak through the audit row because there is no raw text
+    persisted in the first place.
+    """
+    ledger = AuditLedger()
+    verdict = _verdict()
+    bundle = _bundle()
+    sensitive_prompt = "victim: acct.lead@example.invalid"
+    row = ledger.record(
+        verdict=verdict,
+        bundle=bundle,
+        prompt_text=sensitive_prompt,
+        response_text="x",
+        validation_result="ok",
+    )
+    assert row.retention_class == "hash_only"
+    assert row.raw_prompt is None
+    safe = row.safe_dict()
+    assert "raw_prompt" not in safe
+
+
 def test_redact_dict_walks_nested_structures():
     payload = {
         "level1": {

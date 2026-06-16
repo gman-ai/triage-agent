@@ -21,11 +21,15 @@ _BEARER_TOKEN: Pattern[str] = re.compile(r"[Bb]earer\s+[A-Za-z0-9._\-]+")
 _GENERIC_API_KEY: Pattern[str] = re.compile(
     r"(?i)(api[_\-]?key|x[_\-]?api[_\-]?key|authorization)[\s:=]+[\"']?[A-Za-z0-9._\-]{8,}"
 )
+_EMAIL: Pattern[str] = re.compile(
+    r"(?<![A-Za-z0-9._%+\-])[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}"
+)
 
 _PATTERNS: tuple[tuple[str, Pattern[str]], ...] = (
     ("aws_access_key", _AWS_ACCESS_KEY),
     ("bearer_token", _BEARER_TOKEN),
     ("generic_api_key", _GENERIC_API_KEY),
+    ("email", _EMAIL),
     ("aws_secret", _AWS_SECRET),
 )
 
