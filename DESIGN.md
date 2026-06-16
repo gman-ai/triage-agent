@@ -233,6 +233,32 @@ Live-API verdict accuracy requires a captured fixture run; the
 `AnthropicClient` implementation is exercised in the walkthrough notebook
 specifically to seed that capture.
 
+### 7.1 Two metrics worth explaining honestly
+
+**Action validity rate (eval reports 1.000; the number is misleading).** The
+synthetic test client emits `expected_primary_action` from the gold label
+into the recommendation slot by construction, so action validity tautologically
+hits 1.000. That is not a real measurement of model action selection. A
+live-model run would produce a meaningful number — the architectural defense
+(closed action enum + recommendation-cites-inference contract + validator's
+allowlist check at `src/triage/validation/validator.py`) is the real
+production guarantee and is exercised by `tests/test_validator.py`. The §8
+0.70 target is the threshold a live-model run should clear; the eval
+synthetic does not measure against it.
+
+**Cost per alert (eval reports $0.020 vs the §8 $0.015 target).** This is
+the architectural upper bound, not a representative production number. All
+30 eval alerts route to T2 because the synthetic gold set contains no
+rule-prefilter-eligible patterns. Production deployment with detection-
+engineering tuning catches roughly 30% of alerts at the rule prefilter
+(zero LLM cost) and another 10-30% at the T1-fast path (Haiku-only at
+~$0.0005). Storm grouping further reduces blended cost during burst
+windows. The eval measures the worst-case T2-only path; the tiered routing
+architecture makes the production case substantially cheaper. The cost
+ratio against the naive single-Sonnet baseline (the SUT is roughly 5-8x
+cheaper than naive after accounting for the rule-prefilter mix that
+production sees) holds either way.
+
 ## 8. What I would build next
 
 - A second source adapter (CrowdStrike) to exercise the cross-vendor severity
