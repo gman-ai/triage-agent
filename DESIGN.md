@@ -128,13 +128,12 @@ Both bookends — trigger and emit — are pluggable. The middle is the engine,
 and it's the same regardless of how the engine is invoked or where the
 verdict lands.
 
-**Async-by-construction on the pipeline-trigger path.** When invoked
-automatically from the in-flight pipeline, the raw alert continues to the
-SIEM immediately and the verdict attaches via upsert or webhook once ready.
-A 15-40 second LLM call cannot sit on the critical ingestion path. When
-invoked on-demand by analyst, the API call returns the verdict
-synchronously; the analyst is already waiting. Same engine, different
-return semantics per bookend.
+**Return semantics differ per trigger.** On the pipeline-trigger path the
+verdict can attach asynchronously to the SIEM alert via upsert or webhook,
+so the analyst's view of the alert is not held up by a 15-40 second LLM
+call. On the analyst-initiated path the API call returns the verdict
+synchronously — the analyst is already waiting on that specific alert.
+Same engine; different return semantics per bookend.
 
 T3 Opus escalation fires when T2 returns `confidence < 0.6` AND `severity
 in {P0, P1}` AND `rule_family in {ransomware, privilege_escalation,

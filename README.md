@@ -30,15 +30,15 @@ git clone <repo-url> triage-agent
 cd triage-agent
 uv sync --extra dev
 uv run eval     # produces a report under eval/reports/
-uv run pytest   # full suite (170+ tests; ~0.5s)
+uv run pytest   # full suite (176 tests after eval populates reports/; ~1.5s)
 ```
 
 `uv run eval` runs the gold + adversarial sets through the full pipeline
 and writes a Markdown metrics report to `eval/reports/`. Run eval before
 the first pytest in a fresh clone: one test
 (`test_reports_dir_has_at_least_one_eval_run`) skips if no report exists
-yet, so a fresh-clone `pytest`-first run shows 172 passed + 1 skipped
-instead of the full 173 passed.
+yet, so a fresh-clone `pytest`-first run shows 175 passed + 1 skipped
+instead of the full 176 passed.
 
 Neither command requires an Anthropic API key. The test suite uses
 `FixtureReplayClient` and `SequenceClient`; the eval harness uses
