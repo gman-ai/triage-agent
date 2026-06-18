@@ -5,6 +5,30 @@ storm grouping, deterministic routing, plan-gated enrichment across six
 structured sources, grounded reasoning with citation-support validation,
 and emits a structured `TriageVerdict`.
 
+## Three commands to evaluate
+
+Requires Python 3.12 and [uv](https://docs.astral.sh/uv/). No Anthropic API
+key required.
+
+```bash
+uv sync
+uv run eval     # gold + adversarial sets; writes a report to eval/reports/
+uv run pytest   # 179 tests in ~1.5s
+```
+
+Run `uv run eval` first on a fresh clone — one test asserts that a report
+exists, so a `pytest`-first run will show that test skipped.
+
+Tests use `FixtureReplayClient` and `SequenceClient`; eval uses
+`EvalSyntheticClient`. The live Anthropic path was exercised once and the
+captured Opus response lives at
+[`fixtures/llm_replays/cd8a1be0d7d1e45f1148e61c.json`](fixtures/llm_replays/cd8a1be0d7d1e45f1148e61c.json)
+with `live_api: true`, `captured_at: 2026-06-16T04:29:49Z`, and real token
+counts in the fixture metadata. The notebook's T3 cell replays that
+captured response.
+
+## What it is
+
 The service is surface-agnostic: trigger and emit are pluggable bookends.
 Trigger can be automatic when an alert is created in the pipeline, or
 on-demand when an analyst requests triage by alert ID. The verdict can push
@@ -20,26 +44,6 @@ See [DESIGN.md](DESIGN.md) for the architecture and tradeoffs,
 [ARCHITECTURE-DECISIONS.md](ARCHITECTURE-DECISIONS.md) for the numbered
 commitment log, and [AI_TOOLS.md](AI_TOOLS.md) for how AI tools were used
 during the build.
-
-## Quickstart
-
-Requires Python 3.12 and [uv](https://docs.astral.sh/uv/).
-
-```bash
-git clone <repo-url> triage-agent
-cd triage-agent
-uv sync
-uv run eval     # runs gold + adversarial sets; writes a report to eval/reports/
-uv run pytest   # full suite (~1.5s)
-```
-
-Run `uv run eval` first on a fresh clone — one test asserts at least one
-report exists, so a `pytest`-first run will show that test skipped.
-
-Neither command requires an Anthropic API key. Tests use
-`FixtureReplayClient` and `SequenceClient`; eval uses `EvalSyntheticClient`.
-The live `AnthropicClient` is exercised once in the walkthrough notebook
-(see below).
 
 ## Run the API surface locally
 
