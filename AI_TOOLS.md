@@ -19,21 +19,7 @@ and eval-report formatting. The shape was AI-drafted in those spots; the
 contracts, names, and edge cases were reviewed and corrected by hand
 before commit.
 
-## Runtime model usage
-
-The prototype has two bounded LLM reasoning stages, with deterministic T1 routing:
-
-- **T1 — deterministic.** YAML lookup keyed on `(rule_family,
-  severity_hint)`. No LLM.
-- **T2 — Sonnet 4.6.** Evidence-backed reasoning over the enriched bundle.
-  Forced JSON schema; bounded tool-use loop for plan extensions.
-- **T3 — Opus 4.7.** Self-consistency escalation, fires only on
-  low-confidence P0/P1 alerts in deep families.
-
-Everything else — adapters, storm grouping, routing, validator, audit
-ledger, action enum — is deterministic code.
-
-## Where AI was limiting
+## Where AI assistance was limiting
 
 AI assistance needed careful human review around the parts of the system
 where engineering judgment matters most:
@@ -52,6 +38,20 @@ where engineering judgment matters most:
 - **Failure-mode handling.** Schema-drift quarantine, validator terminal
   failsafe, retry semantics, degraded-mode taxonomy — every path that
   ends in a structured `needs_human` verdict was specified by hand.
+
+## Runtime LLM usage in the prototype
+
+Separately from development assistance, the prototype itself uses LLMs in a bounded way:
+
+- **T1 — deterministic.** YAML lookup keyed on `(rule_family,
+  severity_hint)`. No LLM.
+- **T2 — Sonnet 4.6.** Evidence-backed reasoning over the enriched bundle.
+  Forced JSON schema; bounded tool-use loop for plan extensions.
+- **T3 — Opus 4.7.** Self-consistency escalation, fires only on
+  low-confidence P0/P1 alerts in deep families.
+
+Everything else — adapters, storm grouping, routing, validator, audit
+ledger, action enum — is deterministic code.
 
 ## Final takeaway
 
