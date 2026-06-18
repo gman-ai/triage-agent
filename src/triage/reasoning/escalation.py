@@ -1,4 +1,4 @@
-"""T3 Opus escalation per RECONCILED §6 + D6 + IMPL #7.
+"""T3 Opus escalation.
 
 Escalation triggers when:
   * T2 returned `confidence < 0.6` AND
@@ -6,8 +6,7 @@ Escalation triggers when:
   * rule_family in DEEP_FAMILIES
 
 Self-consistency at sample size 3 (capped). The prototype ships ONE demo
-run with cost telemetry; the contract does not require full P95
-measurement (IMPL #7).
+run with cost telemetry; full P95 measurement is production work.
 
 The agent calls the same T2-style prompt against Opus and asks for a
 single best verdict. For prototype scope, "sample 3" is implemented as 3

@@ -1,10 +1,10 @@
-"""Observability spans per RECONCILED §2 cross-cutting + Codex Day 2 review fix.
+"""Observability spans per source attempt.
 
 The verdict layer's `enrichments_failed: list[source_type]` keeps the analyst-
 facing surface clean. The operator-facing surface (these spans) carries the
 forensic detail an SRE needs to reconstruct why a source failed.
 
-Span fields per the Codex Day 2 review fold-in:
+Span fields:
   * source_type, storage_tier
   * failure_mode (the injected mode that produced the failure, or "clean")
   * exception_class (Python exception class name when an error fired)

@@ -1,26 +1,20 @@
-"""Acceptance gate: T1 pre-classifier per IMPL #5 + RECONCILED §6.
+"""T1 deterministic plan resolver tests.
 
-Uses FixtureReplayClient against tmp_path fixtures (no live API key needed).
-Each test:
-  1. Builds the same request the production T1 builds for a given alert
-  2. Writes a hand-crafted response fixture keyed on the request's digest
-  3. Calls pre_classify; asserts on the parsed T1Classification
+T1 is no longer an LLM call. It is a deterministic YAML lookup keyed on
+`(rule_family, severity_hint)`. These tests pin:
+  1. Every supported family resolves to a valid InvestigationPlan
+  2. The alert's severity_hint flows into the resolved plan
+  3. The deterministic surface returns confidence=1.0, tier_recommendation=standard_t2,
+     and zero cost/tokens (no LLM spend)
 """
 
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime
-from pathlib import Path
 
 import pytest
 
-from triage.classifier.pre_classify import (
-    T1Classification,
-    build_t1_request,
-    pre_classify,
-)
-from triage.llm.client import FixtureReplayClient, FixtureMissingError
+from triage.classifier.pre_classify import T1Classification, pre_classify
 from triage.schemas.alert import Asset, CanonicalAlertEvent, Observable
 
 
@@ -30,7 +24,7 @@ def _make_alert(rule_family="impossible_travel", severity="P1") -> CanonicalAler
         alert_id="alert_t1_test_001",
         source_system="okta",
         source_adapter_version="okta_v1",
-        rule_id="okta.impossible_travel.v3",
+        rule_id=f"okta.{rule_family}.v1",
         rule_family=rule_family,
         received_at=datetime(2026, 6, 15, 14, 32, 11, tzinfo=UTC),
         detected_at=datetime(2026, 6, 15, 14, 32, 10, tzinfo=UTC),
@@ -45,135 +39,49 @@ def _make_alert(rule_family="impossible_travel", severity="P1") -> CanonicalAler
                 source_field_path="client.ipAddress",
             )
         ],
-        summary="impossible travel",
+        summary=f"{rule_family} test",
     )
 
 
-def _write_fixture(tmp_path: Path, digest: str, payload: dict) -> None:
-    (tmp_path / f"{digest}.json").write_text(json.dumps(payload))
-
-
-def test_clean_alert_produces_valid_classification(tmp_path):
-    alert = _make_alert()
-    request = build_t1_request(alert)
-    digest = request.digest()
-
-    _write_fixture(
-        tmp_path,
-        digest,
-        {
-            "content": json.dumps(
-                {
-                    "severity_hint": "P1",
-                    "alert_family": "impossible_travel",
-                    "tier_recommendation": "standard_t2",
-                    "confidence": 0.78,
-                    "rationale": "Geo anomaly with no MFA challenge.",
-                    "override_plan": None,
-                }
-            ),
-            "stop_reason": "end_turn",
-            "tool_calls": [],
-            "tokens_in": 420,
-            "tokens_out": 110,
-            "cost_usd": 0.0004,
-            "model": "claude-haiku-4-5-20251001",
-        },
-    )
-
-    client = FixtureReplayClient(fixture_dir=tmp_path)
-    result = pre_classify(alert, client)
+@pytest.mark.parametrize(
+    "family,expected_required_source",
+    [
+        ("impossible_travel", "identity_store"),
+        ("ransomware", "asset_cmdb"),
+        ("c2_callback", "threat_intel"),
+        ("dns_exfil", "threat_intel"),
+        ("privilege_escalation", "identity_store"),
+    ],
+)
+def test_pre_classify_returns_yaml_plan_for_each_family(family, expected_required_source):
+    """Every supported family resolves to a plan with the expected required source."""
+    alert = _make_alert(rule_family=family, severity="P2")
+    result = pre_classify(alert)
 
     assert isinstance(result, T1Classification)
-    assert result.severity_hint == "P1"
-    assert result.alert_family == "impossible_travel"
+    assert result.alert_family == family
+    assert expected_required_source in result.investigation_plan.required_sources
+
+
+def test_pre_classify_uses_alert_severity_hint():
+    """The alert's severity_hint flows through to the resolved plan."""
+    p0_result = pre_classify(_make_alert(severity="P0"))
+    p3_result = pre_classify(_make_alert(severity="P3"))
+
+    assert p0_result.severity_hint == "P0"
+    assert p3_result.severity_hint == "P3"
+    # Both resolve a plan (templates accept all severities for the family)
+    assert p0_result.investigation_plan is not None
+    assert p3_result.investigation_plan is not None
+
+
+def test_pre_classify_returns_confidence_one_and_tier_standard_t2():
+    """Deterministic shim returns confidence=1.0 and standard_t2 with zero LLM spend."""
+    result = pre_classify(_make_alert())
+
+    assert result.confidence == 1.0
     assert result.tier_recommendation == "standard_t2"
-    assert 0.7 < result.confidence < 0.85
-    # Plan comes from the seeded template — impossible_travel = [hot]
-    assert result.investigation_plan.tier_preference == ["hot"]
-    assert "identity_store" in result.investigation_plan.required_sources
-
-
-def test_schema_failure_returns_failsafe_classification(tmp_path):
-    alert = _make_alert()
-    request = build_t1_request(alert)
-    digest = request.digest()
-
-    _write_fixture(
-        tmp_path,
-        digest,
-        {
-            "content": json.dumps(
-                {
-                    "severity_hint": "URGENT",  # not in enum; schema reject
-                    "alert_family": "impossible_travel",
-                    "tier_recommendation": "standard_t2",
-                    "confidence": 0.5,
-                    "rationale": "schema-violating output",
-                }
-            ),
-            "stop_reason": "end_turn",
-            "tokens_in": 350,
-            "tokens_out": 80,
-            "cost_usd": 0.0003,
-            "model": "claude-haiku-4-5-20251001",
-        },
-    )
-
-    client = FixtureReplayClient(fixture_dir=tmp_path)
-    result = pre_classify(alert, client)
-
-    # Failsafe: confidence 0.0 + standard_t2 forces the router to try T2.
-    assert result.confidence == 0.0
-    assert result.tier_recommendation == "standard_t2"
-    assert result.severity_hint == "P1"
-    assert "T1 schema failure" in result.rationale
-
-
-def test_missing_fixture_raises_explicit_error(tmp_path):
-    alert = _make_alert()
-    client = FixtureReplayClient(fixture_dir=tmp_path)
-    with pytest.raises(FixtureMissingError) as excinfo:
-        pre_classify(alert, client)
-    assert "claude-haiku-4-5-20251001" in str(excinfo.value)
-    assert "fixtures/llm_replays" in str(excinfo.value)
-
-
-def test_override_plan_modifies_seeded_template(tmp_path):
-    """T1 can narrow tier_preference or extend optional_sources via override.
-    The Pydantic schema rejects out-of-vocab tokens; the loader applies the
-    override on top of the family's seeded template.
-    """
-    alert = _make_alert()
-    request = build_t1_request(alert)
-    digest = request.digest()
-
-    _write_fixture(
-        tmp_path,
-        digest,
-        {
-            "content": json.dumps(
-                {
-                    "severity_hint": "P1",
-                    "alert_family": "impossible_travel",
-                    "tier_recommendation": "standard_t2",
-                    "confidence": 0.8,
-                    "rationale": "extend optional to include threat_intel for this geo",
-                    "override_plan": {
-                        "optional_sources": ["asset_cmdb", "threat_intel"],
-                        "tier_preference": ["hot", "warm"],
-                    },
-                }
-            ),
-            "stop_reason": "end_turn",
-            "tokens_in": 410,
-            "tokens_out": 130,
-            "cost_usd": 0.0004,
-            "model": "claude-haiku-4-5-20251001",
-        },
-    )
-
-    client = FixtureReplayClient(fixture_dir=tmp_path)
-    result = pre_classify(alert, client)
-    assert result.investigation_plan.tier_preference == ["hot", "warm"]
-    assert "threat_intel" in result.investigation_plan.optional_sources
+    assert result.cost_usd == 0.0
+    assert result.tokens_in == 0
+    assert result.tokens_out == 0
+    assert "deterministic" in result.rationale.lower()

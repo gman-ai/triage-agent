@@ -1,4 +1,4 @@
-"""Correction-loop policy decisions per RECONCILED §4.7 / R5.
+"""Correction-loop policy decisions.
 
 The soft layer applies automatically once `should_soft_trigger` returns
 True:

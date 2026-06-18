@@ -9,16 +9,16 @@ The service is surface-agnostic: trigger and emit are pluggable bookends.
 Trigger can be automatic when an alert is created in the pipeline, or
 on-demand when an analyst requests triage by alert ID. The verdict can push
 back to the SIEM as `triage.*` fields on the alert record, or return via the
-API to a DataBahn surface. The engine in between is the same regardless of
-how it's invoked or where the verdict lands.
+API. Same engine, different bookends per deployment.
 
 Output is structured JSON: closed-vocabulary verdict, grounded
 observed_facts with citation-support validation, MITRE ATT&CK attack_chain
 mapping, and explicit blast_radius + reversible flags on every
-recommendation. Not prose for a chat window.
+recommendation.
 
-Read [DESIGN.md](DESIGN.md) for the architecture, tradeoffs, and failure
-modes. Read [AI_TOOLS.md](AI_TOOLS.md) for where AI tools helped or hindered
+See [DESIGN.md](DESIGN.md) for the architecture and tradeoffs,
+[ARCHITECTURE-DECISIONS.md](ARCHITECTURE-DECISIONS.md) for the numbered
+commitment log, and [AI_TOOLS.md](AI_TOOLS.md) for how AI tools were used
 during the build.
 
 ## Quickstart
@@ -29,21 +29,17 @@ Requires Python 3.12 and [uv](https://docs.astral.sh/uv/).
 git clone <repo-url> triage-agent
 cd triage-agent
 uv sync --extra dev
-uv run eval     # produces a report under eval/reports/
-uv run pytest   # full suite (176 tests after eval populates reports/; ~1.5s)
+uv run eval     # runs gold + adversarial sets; writes a report to eval/reports/
+uv run pytest   # full suite (~1.5s)
 ```
 
-`uv run eval` runs the gold + adversarial sets through the full pipeline
-and writes a Markdown metrics report to `eval/reports/`. Run eval before
-the first pytest in a fresh clone: one test
-(`test_reports_dir_has_at_least_one_eval_run`) skips if no report exists
-yet, so a fresh-clone `pytest`-first run shows 175 passed + 1 skipped
-instead of the full 176 passed.
+Run `uv run eval` first on a fresh clone — one test asserts at least one
+report exists, so a `pytest`-first run will show that test skipped.
 
-Neither command requires an Anthropic API key. The test suite uses
-`FixtureReplayClient` and `SequenceClient`; the eval harness uses
-`EvalSyntheticClient`. The live-API client (`AnthropicClient`) is exercised
-by the walkthrough notebook (see below).
+Neither command requires an Anthropic API key. Tests use
+`FixtureReplayClient` and `SequenceClient`; eval uses `EvalSyntheticClient`.
+The live `AnthropicClient` is exercised once in the walkthrough notebook
+(see below).
 
 ## Run the API surface locally
 
@@ -70,14 +66,11 @@ uv run uvicorn triage.api.main:app
 
 ## Walkthrough notebook
 
-```bash
-uv run jupyter lab notebook.ipynb
-```
-
-The notebook walks end-to-end on three sample alerts spanning families:
+[`notebook.ipynb`](notebook.ipynb) walks end-to-end on three sample alerts:
 impossible_travel (happy path), impossible_travel against stale-clean
-threat intel (D14 defense), and a ransomware P0 routing through T3
-escalation.
+threat intel, and a ransomware P0 routing through T3 escalation. It renders
+on GitHub directly; run locally with `uv run jupyter lab notebook.ipynb` to
+re-execute the cells.
 
 ## Design highlights
 
@@ -85,12 +78,13 @@ escalation.
   deployment.** Automatic from the pipeline OR on-demand by alert ID; verdict
   pushes to the SIEM as `triage.*` fields OR returns via API. Same engine
   regardless of how invoked or where the verdict lands.
-- **InvestigationPlan as a Pydantic field on T1 output.** Plan-gated
-  fan-out fetches only the sources the plan names; T2 may request more
-  via tool call when reasoning identifies a gap (bounded by per-tenant
-  budget envelope).
+- **InvestigationPlan resolved deterministically per `(rule_family, severity_hint)`.**
+  T1 is a YAML lookup, not an LLM call — detection-engineering policy stays
+  with detection engineers. Plan-gated fan-out fetches only the sources the
+  plan names; T2 may request more via tool call when reasoning identifies
+  a gap (bounded by per-tenant budget envelope).
 - **Tier-aware cost story.** `tier_preference` orders hot → warm; cold
-  tier is T2 plan-extension territory only (D34).
+  tier is opt-in via T2 plan extension only, never the default.
 - **Citation support validation.** Every observed_fact carries a
   `field_path` and `expected_value`; the validator walks the cited
   retrieval and checks the field actually contained that value. Catches
@@ -100,13 +94,20 @@ escalation.
   after regex-based redaction for AWS keys, AWS secrets, bearer tokens,
   generic API keys, and email PII.
 
+## Documentation
+
+- [`DESIGN.md`](DESIGN.md) — architecture, tradeoffs, failure modes
+- [`ARCHITECTURE-DECISIONS.md`](ARCHITECTURE-DECISIONS.md) — numbered architecture decisions (D1–D34): the choice, the rationale, and what was rejected
+- [`AI_TOOLS.md`](AI_TOOLS.md) — how AI tools were used during planning and implementation
+- [`notebook.ipynb`](notebook.ipynb) — three-scenario walkthrough
+
 ## Repository layout
 
 ```
 src/triage/
 ├── adapters/         # Source adapters (Okta v1; protocol for the rest)
 ├── audit/            # Hash-based audit ledger + redaction
-├── classifier/       # T1 Haiku pre-classifier
+├── classifier/       # T1 deterministic plan resolver (YAML lookup)
 ├── corrections/      # Soft + hard layer correction loop
 ├── enrichment/       # 6 source mocks + plan-gated tier-ordered fan-out
 ├── errors/           # Drift + isolation exceptions
@@ -118,7 +119,7 @@ src/triage/
 ├── routing/          # Deterministic router
 ├── schemas/          # Pydantic models (alert, plan, retrieval, verdict)
 ├── tenants/          # Tenant-scoped store
-├── validation/       # Schema + citation existence + support + R6 failsafe
+├── validation/       # Schema + citation existence + support + terminal failsafe
 └── api/              # FastAPI surface
 
 eval/
@@ -129,12 +130,13 @@ eval/
 ├── metrics.py        # Accuracy + ECE + reliability diagram
 └── run.py            # `uv run eval` entry
 
-tests/                # 170+ acceptance tests
+tests/                # ~180 tests covering adapters, routing, validation, audit, API
 fixtures/             # plan templates + 2 tenants + Okta payloads + LLM replays
 
-DESIGN.md             # Architecture + tradeoffs + failure modes
-AI_TOOLS.md           # Where AI helped vs hindered
-notebook.ipynb        # Panel-facing walkthrough
+DESIGN.md                    # Architecture + tradeoffs + failure modes
+ARCHITECTURE-DECISIONS.md    # Numbered architecture decisions (D1–D34)
+AI_TOOLS.md                  # How AI tools were used during the build
+notebook.ipynb               # End-to-end walkthrough
 ```
 
 ## License

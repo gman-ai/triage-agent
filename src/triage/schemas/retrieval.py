@@ -1,13 +1,14 @@
-"""Retrieval schemas per RECONCILED §7 + R9.
+"""Retrieval schemas.
 
 RetrievalRef is the typed envelope every enrichment source returns. Every
 field carries provenance (source_type, source_query, fetched_at), grounding
 hooks (retrieval_id is the allowlist token the LLM may cite), truncation
 metadata (retrieval_truncated + truncation_sort_key + total_available), and
-storage-tier metadata (storage_tier per R9 / D33).
+storage-tier metadata (storage_tier).
 
 EvidenceBundle is the shape returned by the enrichment fan-out: an ordered
-list of RetrievalRef plus per-source failure flags (per §2 degraded taxonomy).
+list of RetrievalRef plus per-source failure flags surfaced in the degraded
+taxonomy.
 """
 
 from __future__ import annotations
@@ -27,7 +28,7 @@ class RetrievalRef(BaseModel):
     fetched_at: datetime
     cached_at: datetime | None = None
 
-    # Threat-intel-shaped fields per D14. Carried on all RetrievalRefs as
+    # Threat-intel-shaped provenance fields. Carried on all RetrievalRefs as
     # optionals so the LLM/validator can ground claims against them when
     # present without needing per-source type discrimination.
     provider: str | None = None
@@ -36,12 +37,12 @@ class RetrievalRef(BaseModel):
     last_seen: datetime | None = None
     conflicts: list[dict] = Field(default_factory=list)
 
-    # Truncation contract per R3 / §4.8.
+    # Truncation contract.
     retrieval_truncated: bool = False
     truncation_sort_key: str | None = None
     total_available: int | None = None
 
-    # Storage-tier contract per R9 / D33.
+    # Storage-tier contract.
     storage_tier: StorageTier | None = None
 
     # Payload is the structured record(s) the source returned. Pydantic dict
@@ -57,10 +58,10 @@ class EvidenceBundle(BaseModel):
     retrievals[] is the allowlist for the reasoning agent: every fact emitted
     by the LLM must cite a retrieval_id that appears in this list.
     enrichments_failed[] is the analyst-facing flat list keeping the verdict
-    schema clean per §2 degraded taxonomy.
+    schema clean.
     spans[] is the operator-facing per-source detail (error_type, message,
     retry_count, latency_ms) that an SRE uses to reconstruct WHY a source
-    failed. Codex Day 2 review folded this in on Day 4.
+    failed.
     """
 
     retrievals: list[RetrievalRef] = Field(default_factory=list)

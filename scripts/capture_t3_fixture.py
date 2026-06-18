@@ -1,8 +1,8 @@
 """Capture one live-API T3 escalation response as a replay fixture.
 
-Per DESIGN.md §4.4: the test suite runs without `ANTHROPIC_API_KEY` and uses
-fixture-replay; one live capture seeds the replay so `uv run pytest` is
-reproducible across machines without anyone paying for API calls.
+The test suite runs without `ANTHROPIC_API_KEY` and uses fixture-replay;
+one live capture seeds the replay so `uv run pytest` is reproducible
+across machines without anyone paying for API calls.
 
 Usage:
     uv run python scripts/capture_t3_fixture.py
@@ -32,28 +32,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 ENV_PATH = REPO_ROOT / ".env"
 FIXTURE_DIR = REPO_ROOT / "fixtures" / "llm_replays"
 
-# Anthropic published pricing as of build date, USD per million tokens.
-# Update this table when capturing against a different model snapshot.
-_MODEL_PRICING_PER_MTOK = {
-    # Opus 4.x family
-    "claude-opus-4-7": (15.00, 75.00),
-    "claude-opus-4-8": (15.00, 75.00),
-    # Sonnet 4.6
-    "claude-sonnet-4-6": (3.00, 15.00),
-    # Haiku 4.5
-    "claude-haiku-4-5-20251001": (0.25, 1.25),
-}
-
-
-def _cost_for(model: str, tokens_in: int, tokens_out: int) -> float:
-    if not model:
-        return 0.0
-    for prefix, (in_per_m, out_per_m) in _MODEL_PRICING_PER_MTOK.items():
-        if model.startswith(prefix):
-            return round(
-                (tokens_in * in_per_m + tokens_out * out_per_m) / 1_000_000, 6
-            )
-    return 0.0
+# Pricing helper lives in triage.llm.client so the live client and this
+# capture script share one source of truth. Re-export under the
+# script-local name to keep the rest of this file stable.
+from triage.llm.client import cost_for as _cost_for  # noqa: E402
 
 
 def _load_env_file(path: Path) -> None:

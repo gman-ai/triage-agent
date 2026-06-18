@@ -1,13 +1,13 @@
-"""Correction-loop API surface per RECONCILED §4.7.
+"""Correction-loop API surface.
 
-Plain Python functions today; Day 5 wires them into FastAPI per IMPL #15.
+Plain Python functions wired into FastAPI by the API layer.
 
 Endpoints:
 - submit_correction(...)
-  Backs POST /api/v1/triage/{triage_id}/correct.
+  Backs POST /triage/{triage_id}/correct.
 - force_review_ack(...)
   Backs POST /api/v1/calibration/{tenant}/{rule_family}/force-review.
-  The hard layer per DESIGN ONLY #4. Detection-engineering invocation
+  The hard layer. Detection-engineering invocation
   toggles the hard flag for that tenant/rule_family.
 """
 

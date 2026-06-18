@@ -1,15 +1,15 @@
-"""FastAPI surface per IMPL #15 + RECONCILED §9.
+"""FastAPI surface for the triage pipeline.
 
 Endpoints:
   POST /triage                                — full pipeline on a vendor payload
   POST /triage/{triage_id}/correct           — analyst correction (soft layer)
   POST /api/v1/calibration/{tenant}/{rule_family}/force-review
-                                              — detection-eng ack (hard layer)
+                                              — detection-engineering ack (hard layer)
   GET /health                                 — liveness + LLM client mode
 
-Defaults to FixtureReplayClient so the panel can run `uvicorn triage.api.main:app`
-without ANTHROPIC_API_KEY. Set TRIAGE_LIVE_LLM=1 (and ANTHROPIC_API_KEY) to
-switch to AnthropicClient for live runs.
+Defaults to FixtureReplayClient so the surface runs without ANTHROPIC_API_KEY.
+Set TRIAGE_LIVE_LLM=1 (and ANTHROPIC_API_KEY) to switch to AnthropicClient
+for live runs.
 """
 
 from __future__ import annotations

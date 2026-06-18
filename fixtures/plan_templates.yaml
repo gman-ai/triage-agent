@@ -1,11 +1,12 @@
 version: "1.0"
 notes: |
-  Per-family InvestigationPlan templates per RECONCILED §5.1 (R8).
-  T1 selects the template matching CanonicalAlertEvent.rule_family and emits
-  an InvestigationPlan; the enrichment fan-out reads required + optional and
-  fetches only those sources. T2 may extend via request_additional_source.
+  Per-family InvestigationPlan templates.
+  T1 selects the template matching CanonicalAlertEvent.rule_family + severity_hint
+  and resolves an InvestigationPlan; the enrichment fan-out reads required +
+  optional and fetches only those sources. T2 may extend via
+  request_additional_source.
   These are conservative starting points, not policy; production tuning is
-  detection-engineering work (DESIGN ONLY item #15).
+  detection-engineering work.
 
 families:
   impossible_travel:

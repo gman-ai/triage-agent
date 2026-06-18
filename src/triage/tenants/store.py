@@ -1,4 +1,4 @@
-"""Tenant-scoped store per RECONCILED §4.1.
+"""Tenant-scoped store.
 
 A minimal storage abstraction that enforces tenant isolation at the read
 boundary. Application code that "forgets" to filter by tenant_id receives
@@ -6,9 +6,9 @@ an empty result, not another tenant's rows. If a caller queries with the
 wrong tenant_id, the store raises TenantIsolationError (defense in depth on
 top of the empty-result behavior).
 
-This is the Day 1 contract that the Day 2 enrichment adapters implement.
-Day 4 wires the production swap notes into DESIGN.md (Supabase RLS,
-current_setting('app.tenant_id'), per-tenant DB roles).
+The enrichment adapters implement this contract. Production swap notes
+are in DESIGN.md (Supabase RLS, current_setting('app.tenant_id'),
+per-tenant DB roles).
 """
 
 from __future__ import annotations

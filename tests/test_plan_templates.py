@@ -1,8 +1,8 @@
-"""Acceptance gate: plan templates per IMPL #5a + RECONCILED §5.1.
+"""Plan template tests.
 
-Each of the five required families loads a valid plan with required and
-optional sources. The IMPL gate specifies two specific source-exclusion
-claims that drive the architecture defense:
+Each of the five supported families loads a valid plan with required and
+optional sources. Two specific source-exclusion claims pin the architecture
+defense:
 
   * impossible_travel plan EXCLUDES runbook KB (identity-driven, runbook noise)
   * c2_callback plan EXCLUDES identity_store (network-driven, identity noise)
@@ -45,7 +45,7 @@ def test_each_family_builds_a_valid_investigation_plan(plan_registry, family):
 
 @pytest.mark.parametrize("family", REQUIRED_FAMILIES)
 def test_each_family_has_a_tier_preference(plan_registry, family):
-    """R9 / D33: every per-family template seeds an ordered tier_preference."""
+    """Every per-family template seeds an ordered tier_preference."""
     plan = plan_registry.build_plan(rule_family=family, severity_hint="P2")
     assert len(plan.tier_preference) >= 1
     assert all(tier in {"hot", "warm", "cold"} for tier in plan.tier_preference)
@@ -53,7 +53,7 @@ def test_each_family_has_a_tier_preference(plan_registry, family):
 
 @pytest.mark.parametrize("family", REQUIRED_FAMILIES)
 def test_no_default_template_includes_cold_tier(plan_registry, family):
-    """D34: cold tier never appears in a default template's tier_preference.
+    """Cold tier never appears in a default template's tier_preference.
 
     Cold-tier retrieval is T2 plan-extension territory only — it requires an
     explicit cost-justified rationale. Including it in a default would defeat
@@ -61,7 +61,7 @@ def test_no_default_template_includes_cold_tier(plan_registry, family):
     """
     plan = plan_registry.build_plan(rule_family=family, severity_hint="P2")
     assert "cold" not in plan.tier_preference, (
-        f"family={family!r} default template must not include 'cold' (D34)"
+        f"family={family!r} default template must not include 'cold'"
     )
 
 

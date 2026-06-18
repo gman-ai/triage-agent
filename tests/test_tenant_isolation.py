@@ -1,13 +1,9 @@
-"""Acceptance gate subset: tenant isolation per RECONCILED §4.1 + IMPL #11.
+"""Tenant isolation tests.
 
-The full §4.1 test runs the same alert through the whole pipeline for two
-tenants and asserts no cross-tenant rows leak through retrieval. That arrives
-on Day 2 when the enrichment layer exists. This Day 1 subset exercises the
-boundary the retrieval layer will sit behind: TenantScopedStore.
-
-Two tenants seed records with IDENTICAL entity IDs on purpose so accidental
-leakage is detectable (per §4.1: "same host_id, same user_id, same IOC
-values"). The test asserts:
+This subset exercises the boundary the retrieval layer sits behind:
+TenantScopedStore. Two tenants seed records with IDENTICAL entity IDs on
+purpose so accidental leakage is detectable ("same host_id, same user_id,
+same IOC values"). The test asserts:
 
   1. Reading with the wrong tenant_id either returns None or raises
      TenantIsolationError; it never silently returns the other tenant's row.
@@ -49,7 +45,7 @@ def test_query_with_wrong_tenant_id_raises(tenant_a_id):
 def test_broken_application_code_forgetting_tenant_returns_empty(tenant_a_id, tenant_b_id):
     """Defense-in-depth check: caller does not supply tenant_id at all.
 
-    This simulates the §4.1 scenario where application code "deliberately
+    This simulates the scenario where application code "deliberately
     broken" omits the tenant filter on one retrieval call. The store must
     return empty/None rather than fall through to the union of all tenants.
     """

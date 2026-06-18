@@ -2,15 +2,14 @@
 
 This is the "alert goes to GPT and GPT summarizes" pattern the brief
 explicitly warned against. The eval measures it for the comparative
-story: the reconciled architecture must beat naive on every meaningful
+story: the structured architecture must beat naive on every meaningful
 metric (verdict accuracy, citation existence, support validity, cost
 attribution, latency floor).
 
-Per Day 5 directive: deterministic via the same alert-id-keyed
-distribution used in the SUT synthetic client, but with degraded
-calibration (60% expected vs SUT's 80%) because a single shot without
-plan-gating + retrieval + tool-use is the entire architectural point
-the contract argues against.
+Deterministic via the same alert-id-keyed distribution used in the SUT
+synthetic client, but with degraded calibration (60% expected vs SUT's
+80%) because a single shot without plan-gating + retrieval + tool-use is
+the architectural anti-pattern.
 """
 
 from __future__ import annotations

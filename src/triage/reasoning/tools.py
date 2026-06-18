@@ -1,13 +1,13 @@
-"""T2 tool definitions per RECONCILED §5.1 + R8.
+"""T2 tool definitions.
 
 T2's only mutating tool is `request_additional_source` — and even that does
 NOT mutate the world. It signals the orchestrator to fetch an additional
 enrichment source (subject to budget + tier policy) and append the result
 to the evidence bundle for the next reasoning pass.
 
-D9 / §4.4: T2 cites retrieval_ids from the bundle the orchestrator
-generated. T2 never mints retrieval_ids; the validator rejects any cited ID
-that isn't in the allowlist.
+T2 cites retrieval_ids from the bundle the orchestrator generated. T2
+never mints retrieval_ids; the validator rejects any cited ID that isn't
+in the allowlist.
 """
 
 from __future__ import annotations

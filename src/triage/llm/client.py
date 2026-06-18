@@ -1,15 +1,15 @@
-"""LLM client abstraction + fixture-replay mock per Day 3 directive.
+"""LLM client abstraction + fixture-replay mock.
 
-Production deployment routes against Anthropic's API; the prototype's test
-suite never calls the live API (D2: `git clone && uv sync && uv run pytest`
-runs on the panel's machine without an injected key).
+Production deployment routes against Anthropic's API; the test suite never
+calls the live API. `git clone && uv sync && uv run pytest` runs on any
+machine without an injected key.
 
 This module ships two implementations of the LLMClient Protocol:
 
   * `AnthropicClient` — production shape, expects ANTHROPIC_API_KEY in env;
-     not exercised by the test suite. The notebook walkthrough on Day 5 makes
-     one demo call against this client and captures the response as a
-     fixture; tests replay from the fixture.
+     not exercised by the test suite. A capture script makes one demo call
+     against this client and captures the response as a fixture; tests
+     replay from the fixture.
   * `FixtureReplayClient` — deterministic. Hashes the request and looks the
      hash up under `fixtures/llm_replays/<digest>.json`. Found → returns the
      recorded response. Missing → raises with a clear message about how to
@@ -30,6 +30,38 @@ from pathlib import Path
 from typing import Any, Protocol
 
 FIXTURE_DIR = Path(__file__).resolve().parents[3] / "fixtures" / "llm_replays"
+
+
+# Anthropic published pricing as of build date, USD per million tokens.
+# (input_per_mtok, output_per_mtok). Update when capturing against a different
+# model snapshot. Single source of truth for both the live client and the
+# capture script.
+MODEL_PRICING_PER_MTOK: dict[str, tuple[float, float]] = {
+    # Opus 4.x family
+    "claude-opus-4-7": (15.00, 75.00),
+    "claude-opus-4-8": (15.00, 75.00),
+    # Sonnet 4.6
+    "claude-sonnet-4-6": (3.00, 15.00),
+    # Haiku 4.5
+    "claude-haiku-4-5-20251001": (0.25, 1.25),
+}
+
+
+def cost_for(model: str, tokens_in: int, tokens_out: int) -> float:
+    """Return USD cost for a model call given input/output token counts.
+
+    Unknown models return 0.0 — callers can treat that as "pricing unknown,
+    update MODEL_PRICING_PER_MTOK" rather than silently miscount.
+    """
+    if not model:
+        return 0.0
+    for prefix, (in_per_m, out_per_m) in MODEL_PRICING_PER_MTOK.items():
+        if model.startswith(prefix):
+            return round(
+                (tokens_in * in_per_m + tokens_out * out_per_m) / 1_000_000,
+                6,
+            )
+    return 0.0
 
 
 @dataclass
@@ -85,7 +117,7 @@ class LLMClient(Protocol):
 class FixtureReplayClient:
     """Reads recorded responses keyed on request digest.
 
-    Used by every Day 3+ test. The fixture file shape is:
+    Used by the test suite. The fixture file shape is:
 
         {
             "content": "<JSON or prose>",
@@ -148,9 +180,9 @@ class SequenceClient:
 class AnthropicClient:
     """Live Anthropic client. Not exercised by tests.
 
-    Day 5's notebook uses this for one demo run; the resulting response is
-    serialized into the fixture directory keyed on its request digest, and
-    tests then replay it.
+    The capture script (`scripts/capture_t3_fixture.py`) uses this for one
+    demo run; the resulting response is serialized into the fixture directory
+    keyed on its request digest, and tests then replay it.
     """
 
     def __init__(self, api_key: str | None = None) -> None:
@@ -176,14 +208,17 @@ class AnthropicClient:
         if request.tools:
             kwargs["tools"] = request.tools
         result = client.messages.create(**kwargs)
+        tokens_in = int(result.usage.input_tokens)
+        tokens_out = int(result.usage.output_tokens)
+        model = str(result.model)
         return LLMResponse(
             content=_join_anthropic_text_blocks(result.content),
             stop_reason=str(result.stop_reason or "end_turn"),
             tool_calls=_extract_tool_calls(result.content),
-            tokens_in=int(result.usage.input_tokens),
-            tokens_out=int(result.usage.output_tokens),
-            cost_usd=0.0,
-            model=str(result.model),
+            tokens_in=tokens_in,
+            tokens_out=tokens_out,
+            cost_usd=cost_for(model, tokens_in, tokens_out),
+            model=model,
         )
 
 

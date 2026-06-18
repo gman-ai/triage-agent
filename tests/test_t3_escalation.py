@@ -1,7 +1,7 @@
-"""Acceptance gate: T3 Opus escalation per IMPL #7 + RECONCILED §6 / D6.
+"""T3 Opus escalation tests.
 
-One demo run with cost telemetry. No full P95 measurement (IMPL #7
-explicit). Self-consistency at sample size 3 (capped): three independent
+One demo run with cost telemetry. No full P95 measurement at prototype
+scope. Self-consistency at sample size 3 (capped): three independent
 calls; majority verdict wins.
 """
 

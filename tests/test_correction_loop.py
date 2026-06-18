@@ -1,4 +1,4 @@
-"""Acceptance gate: correction loop per IMPL #13 + §4.7 / R5.
+"""Correction loop tests.
 
 Two layers:
   * Soft layer (auto): operational alert + degraded: tenant_calibration_
@@ -59,8 +59,8 @@ def _seed_audit_row(ledger: AuditLedger, triage_id: str, tenant_id: str) -> None
 
 
 def test_soft_layer_triggers_after_threshold_disagreements():
-    """Per IMPL #13: after 8 corrections marking the verdict wrong, the next
-    routing decision routes degraded with tenant_calibration_warning.
+    """After 8 corrections marking the verdict wrong, the next routing
+    decision routes degraded with tenant_calibration_warning.
     """
     store = CorrectionStore()
     audit = AuditLedger()

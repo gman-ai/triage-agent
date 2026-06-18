@@ -1,4 +1,4 @@
-"""Per-tenant budget envelope per RECONCILED §4.6.
+"""Per-tenant budget envelope.
 
 Two thresholds:
   * soft_cap_pct (default 80%) — at or above this, new alerts go T1-only
@@ -6,8 +6,8 @@ Two thresholds:
                                   and P0/P1 of {ransomware, privesc, exfil}
                                   bypass with needs_human_urgent
 
-Day 3 ships the envelope shape + decision functions; Day 4 adds the audit
-ledger row that records budget consumption per triage.
+The audit ledger row records budget consumption per triage so per-tenant
+cost dashboards can sum across the day.
 """
 
 from __future__ import annotations
@@ -56,7 +56,7 @@ def budget_decision(
     severity_hint: Severity | None,
     rule_family: RuleFamily,
 ) -> BudgetDecision:
-    """Apply §4.6 severity-aware budget policy.
+    """Apply the severity-aware budget policy.
 
     P0/P1 of DEEP_FAMILIES always bypass; the routing layer then emits the
     verdict with `needs_human_urgent` and surfaces a metric. Lower severities

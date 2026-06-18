@@ -1,20 +1,76 @@
-"""Smoke test for the FastAPI surface per IMPL #15.
+"""Smoke test for the FastAPI surface.
 
-Uses FastAPI's TestClient so no live server is required. Hits /health and the
-correction + force-review endpoints. The /triage endpoint requires an LLM
-client; defaults to FixtureReplayClient and will raise FixtureMissingError on
-a payload without a captured fixture — that's the production posture, not a
-test bug, so the smoke covers /triage with a deterministic adversarial-style
-quarantine that doesn't hit the LLM.
+Uses FastAPI's TestClient so no live server is required. Hits /health, the
+quarantine path on /triage, a happy-path /triage with an injected
+SequenceClient, and the correction + force-review endpoints.
 """
 
 from __future__ import annotations
 
+import json
+
+import pytest
 from fastapi.testclient import TestClient
 
+import triage.api.main as api_main
 from triage.api.main import app
+from triage.llm.client import LLMResponse, SequenceClient
 
 client = TestClient(app)
+
+
+@pytest.fixture
+def sequence_client_with_minimal_verdict():
+    """Inject a SequenceClient that returns a schema-valid minimal verdict.
+
+    The verdict has no observed_facts (the schema allows an empty list), so
+    citation existence and citation support both vacuously pass. This proves
+    the full /triage path runs end-to-end: adapter -> storm grouper -> T1 ->
+    router -> fan-out -> T2 (this canned response) -> validator -> audit ->
+    emit. The verdict shape mirrors a real Sonnet response.
+    """
+    canned = {
+        "verdict": "likely_true_positive",
+        "confidence": 0.7,
+        "severity": "P1",
+        "severity_rationale": "Geo anomaly; partial evidence.",
+        "summary": "API-test canned verdict.",
+        "attack_chain": [],
+        "observed_facts": [],
+        "inferences": [],
+        "recommendations": [
+            {
+                "priority": 1,
+                "action": "open_ticket",
+                "rationale": "Surface for human review.",
+                "supported_by_inference_ids": [],
+                "blast_radius": "low",
+                "reversible": True,
+                "automatable": False,
+            }
+        ],
+        "blast_radius": {"affected_assets": ["u_acct_lead"]},
+        "uncertainty": {"missing_enrichments": []},
+    }
+    seq = SequenceClient(
+        [
+            LLMResponse(
+                content=json.dumps(canned),
+                stop_reason="end_turn",
+                tokens_in=2000,
+                tokens_out=600,
+                cost_usd=0.022,
+                model="claude-sonnet-4-6",
+            )
+        ]
+        * 2  # one for first pass; one in case the failsafe retries.
+    )
+    original = api_main._CLIENT
+    api_main._CLIENT = seq
+    try:
+        yield seq
+    finally:
+        api_main._CLIENT = original
 
 
 def test_health_returns_ok_with_llm_mode():
@@ -24,6 +80,47 @@ def test_health_returns_ok_with_llm_mode():
     assert body["status"] == "ok"
     assert body["llm_client_mode"] in {"fixture_replay", "live"}
     assert body["version"] == "0.1.0"
+
+
+def test_triage_happy_path_with_injected_client(sequence_client_with_minimal_verdict):
+    """End-to-end /triage on a clean Okta payload with an injected LLM client.
+
+    Proves the production happy path runs the full pipeline (adapter
+    normalization through validator + audit + emit) and returns a structured
+    verdict, not just the quarantine path. The injected SequenceClient
+    bypasses fixture-replay so the test does not depend on captured digests.
+    """
+    okta_payload = {
+        "uuid": "evt_001",
+        "actor": {"id": "u_acct_lead", "type": "User"},
+        "client": {"ipAddress": "198.51.100.42"},
+        "displayMessage": "Sign-on from Bulgaria 30s after Portland session",
+        "eventType": "user.session.start",
+        "published": "2026-06-17T14:32:10Z",
+        "outcome": {"result": "SUCCESS"},
+        "rule": {
+            "id": "okta.impossible_travel.v3",
+            "family": "impossible_travel",
+            "severity": "P1",
+        },
+    }
+    response = client.post(
+        "/triage",
+        json={
+            "raw_payload": okta_payload,
+            "tenant_id": "tenant_a",
+            "source_system": "okta",
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["verdict"] in {
+        "likely_true_positive",
+        "needs_human",  # falls back if validator rejects
+    }
+    assert body["severity"] in {"P0", "P1", "P2", "P3", "P4"}
+    assert "triage_id" in body
+    assert body["audit_pointer"]
 
 
 def test_triage_quarantines_unknown_source_without_hitting_llm():

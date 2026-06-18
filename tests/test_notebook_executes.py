@@ -1,14 +1,14 @@
-"""Notebook execution guardrail per Day 8 directive.
+"""Notebook execution guardrail.
 
-`notebook.ipynb` is the panel's primary walkthrough surface. Any drift in
-upstream code, fixture digests, or cell content that would break panel
-execution must be caught at test time, not at panel-execution time.
+`notebook.ipynb` is the primary walkthrough surface. Any drift in upstream
+code, fixture digests, or cell content that would break notebook execution
+must be caught at test time, not at walkthrough time.
 
 This test runs `notebook.ipynb` end-to-end via `nbclient.NotebookClient` and
 asserts that no cell raises. It must run without an Anthropic API key — the
-fix shipped in Day 8 swaps the T3 cell from digest-based `FixtureReplayClient`
-to call-order `SequenceClient` so the bundle's non-deterministic
-retrieval_ids and `fetched_at` fields do not break replay.
+T3 cell uses call-order `SequenceClient` (not digest-based
+`FixtureReplayClient`) so the bundle's non-deterministic retrieval_ids and
+`fetched_at` fields do not break replay.
 
 If this test breaks in CI or pre-submission, the bug is in one of:
   * an upstream change to `LLMRequest.digest()` shape (shouldn't matter for
@@ -91,8 +91,8 @@ def test_notebook_t3_cell_replays_captured_live_response(
 
 
 def test_notebook_title_locked() -> None:
-    """The notebook title is `Triage Agent — Walkthrough`. Day 8 directive
-    pins this; do not revert to the earlier 'Triage Copilot' phrasing.
+    """The notebook title is `Triage Agent — Walkthrough`. Pinned to prevent
+    regression to earlier phrasings.
     """
     nb = nbformat.read(NOTEBOOK_PATH, as_version=4)
     first_cell_text = "".join(nb.cells[0].source)

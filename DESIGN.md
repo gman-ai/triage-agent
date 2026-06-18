@@ -6,6 +6,10 @@ grounded reasoning over cross-source context, and emits a structured
 bookends; the engine is the same regardless of how it is invoked or where
 the verdict lands.
 
+This document is the architectural narrative. The structured commitment log
+— each load-bearing decision with rationale and rejected alternatives —
+lives in [`ARCHITECTURE-DECISIONS.md`](ARCHITECTURE-DECISIONS.md).
+
 ## 1. Problem framing
 
 A SOC analyst receives a SIEM alert. The question is not "what does this
@@ -46,17 +50,25 @@ storage tiers (compliance retention) instead of the expensive SIEM index.
 A generic SOC AI tool sees what the SIEM saw; this engine sees what the
 pipeline saw.
 
-**Cost is bounded by tiered routing.** Not every alert reaches deep
-reasoning. A four-stage cascade catches alerts at the appropriate tier:
+**Cost is bounded by a four-layer cascade**, each catching alerts that
+don't need deeper reasoning:
 
-- Rule prefilter catches known-FP and known-TP patterns at zero LLM cost
-- T1 Haiku handles low-severity high-confidence triage at sub-cent cost
-- T2 Sonnet handles standard triage with plan-gated enrichment and tool
-  calling
-- T3 Opus is reserved for low-confidence P0/P1 alerts in critical families
+1. **Rule prefilter** — known-FP and known-TP patterns at zero LLM cost
+2. **Storm grouping** — burst-window deduplication once the per-key
+   threshold trips; the first alerts that share a key still route
+   individually, then subsequent member alerts attach to the group and
+   bypass the LLM tier
+3. **Deterministic plan lookup at T1** — YAML-resolved investigation
+   plan keyed on `(rule_family, severity_hint)`; zero LLM cost
+4. **T2 Sonnet** — only when evidence-backed reasoning over the enriched
+   bundle is needed
+5. **T3 Opus** — only for critical low-confidence cases (P0/P1 in deep
+   families); self-consistency sample 3
 
-This is the cost discipline. Only the alerts that need deep reasoning get
-it; the rest get the right cheaper tier.
+This is the cost discipline. Only the alerts that need deep reasoning
+get it; the rest get the right cheaper tier. LLMs enter the system only
+where probabilistic judgment over evidence matters; routing and plan
+selection are detection-engineering policy encoded in YAML.
 
 **The agent does NOT:**
 
@@ -84,14 +96,13 @@ Source Adapter (per-vendor; versioned; destructive vs additive drift split)
 Storm Grouper (key: tenant + rule + source + entity + IOC + 5-min bucket)
    │ AlertEvent or IncidentGroup
    ▼
-Deterministic Router (rule prefilter → T1 → severity/confidence/budget)
+T1 Deterministic Plan Resolver (YAML lookup keyed on rule_family + severity_hint)
+   │ InvestigationPlan
+   ▼
+Deterministic Router (rule prefilter → severity/confidence/budget)
    │
-   ├── rule_fast / t1_fast (no LLM beyond classifier)
+   ├── rule_fast (no LLM)
    └── t2_standard / t2_urgent / t2_escalate_if_low_conf
-                          │
-                          ▼
-                  T1 Pre-classifier (Haiku, JSON-mode)
-                  emits InvestigationPlan with tier_preference
                           │
                           ▼
                   Plan-gated Tier-ordered Fan-out
@@ -143,14 +154,17 @@ data_exfil, dns_exfil}`. T3 is a terminal pass; no further plan extension.
 
 ### 3.1 NIST SP 800-61r3 (Computer Security Incident Handling Guide)
 
-The investigation lifecycle aligns with NIST SP 800-61r3. The system supports
-detection (source adapters normalize vendor alerts into a canonical schema),
-analysis (T2 grounded reasoning produces a TriageVerdict with observed_facts
-and inferences), containment-recommendation (closed-vocabulary
-`recommendations[]` with `blast_radius` and `reversible` flags), and
-post-investigation feedback (the correction loop feeds analyst dispositions
-back into per-tenant calibration). The architecture is an implementation of
-a standard, not a vendor opinion.
+The investigation lifecycle draws on NIST SP 800-61r3's detection →
+analysis → containment-recommendation → post-incident framing. The
+prototype implements pieces that map to each phase: source adapters
+normalize vendor alerts into a canonical schema (detection-side input),
+T2 grounded reasoning produces a TriageVerdict with observed_facts and
+inferences (analysis), closed-vocabulary `recommendations[]` with
+`blast_radius` and `reversible` flags carry the containment-recommendation
+surface, and the correction loop feeds analyst dispositions back into
+per-tenant calibration (post-investigation feedback). The mapping is
+framing-level: the architecture follows the lifecycle, not a formal
+certification against any specific NIST control.
 
 ### 3.2 MITRE ATT&CK as threat vocabulary
 
@@ -166,10 +180,12 @@ downstream automation against tactic IDs trivial.
 LangGraph supervisor-worker architectures (e.g., the public SentinelFlow
 project) place a primary agent over specialized worker subgraphs. For
 bounded, single-investigation alerts, the multi-agent shape adds orchestration
-latency and cost without measurable accuracy gain. The reconciled architecture
-here uses a single agent with a typed `InvestigationPlan` (a Pydantic field
-on T1's output, not a separate Planner Agent) and the `request_additional_
-source` tool when reasoning identifies a gap. Multi-agent is the right call
+latency and cost without measurable accuracy gain. The architecture here
+uses a single agent with a typed `InvestigationPlan` resolved
+deterministically from `(rule_family, severity_hint)` against a YAML
+template registry — not a separate Planner Agent, and not an LLM-emitted
+plan — plus the `request_additional_source` tool when reasoning identifies
+a gap. Multi-agent is the right call
 when investigations span days and require persistent agent identity. These
 investigations don't.
 
@@ -188,7 +204,7 @@ validation cannot.
 
 | # | Choice | Why |
 |---|---|---|
-| Plan-gated retrieval | T1 emits `InvestigationPlan`; fan-out fetches only listed sources, ordered by `tier_preference` | Always-fan-out wastes cost and latency; targeted-then-extend matches modern SOC agent direction |
+| Plan-gated retrieval | T1 selects `InvestigationPlan` via YAML lookup; fan-out fetches only listed sources, ordered by `tier_preference` | Always-fan-out wastes cost and latency; targeted-then-extend matches modern SOC agent direction; deterministic plan policy stays with detection engineering |
 | Tier-aware cost story | `RetrievalRef.storage_tier` ∈ {hot, warm, cold}; default plans never include cold | Tiered telemetry routing makes the cost story visible in code, not prose |
 | Single agent + tool use | One Sonnet reasoning pass with `request_additional_source` tool, capped at 2 extensions per alert | Multi-agent adds latency and cost without measurable accuracy at this scale (§3.3) |
 | Closed-vocabulary verdict | Pydantic `Literal` types on verdict/severity/action/tactic | Schema makes ungrounded outputs structurally invalid; downstream automation matches exact strings |
@@ -276,8 +292,8 @@ A single `AnthropicClient` instance is exercised by `scripts/capture_t3_
 fixture.py` to capture one live response; that response is serialized into
 `fixtures/llm_replays/` as authenticity evidence. The eval harness uses
 `EvalSyntheticClient`, a deterministic synthetic that returns calibrated
-responses keyed on `alert_id` so the metrics report is reproducible on the
-panel's machine.
+responses keyed on `alert_id` so the metrics report is reproducible on any
+machine.
 
 **Subtle architectural decision worth naming.** The walkthrough notebook's
 T3 escalation cell does NOT use `FixtureReplayClient` against the captured
@@ -293,10 +309,9 @@ fixture file stays in the repo with `live_api: true` + `captured_at` +
 real token counts as authenticity evidence; the response that gets replayed
 in the notebook IS the actual Opus output. `tests/test_notebook_executes.py`
 runs the notebook end-to-end on every `uv run pytest` to catch any future
-drift in this pattern. This is the lesson learned in Day 8 root-cause
-investigation; the digest-replay pattern only works when the request
-payload is fully deterministic, which fixed-input tests are but live-pipeline
-demos aren't.
+drift in this pattern. The digest-replay pattern only works when the
+request payload is fully deterministic, which fixed-input tests are but
+live-pipeline demos aren't.
 
 ## 6. Failure modes
 
@@ -308,7 +323,7 @@ demos aren't.
 | Hallucinated citations | Validator walks `field_path` on the cited retrieval and matches `expected_value`; field mismatch downgrades the fact | Prose evidence (runbooks) can only be existence-checked; flagged `human_verifiable` |
 | Output schema or support double-failure | Validator emits hardcoded `needs_human` verdict with `degraded: validation_failure_*`; pipeline NEVER raises uncaught | Verdict is degraded; analyst must act manually |
 | Tenant data leakage | Tenant-scoped store with empty-result-on-missing + raise-on-cross-tenant; storm grouper key partitions by tenant; isolation gate fixture has identical entity IDs across two tenants | Application code outside the store boundary could still leak via prompt assembly — see §7 |
-| Storm cost runaway | Storm grouper collapses 1000+ alert bursts to one IncidentGroup before LLM | Bursts that straddle the 5-minute bucket boundary produce two group verdicts (documented; production swap to sliding window) |
+| Storm cost runaway | Storm grouper collapses burst tails after the trip threshold (member alerts attach to an IncidentGroup and bypass LLM); the first alerts that share a key still route individually | Pre-trip alerts each pay one LLM round; bursts that straddle the 5-minute bucket boundary or vary IOC under the key produce additional group verdicts (production swap to sliding window + Redis backing) |
 | Budget exhaustion silent skip on P0 | Severity-aware override forces P0/P1 of deep families through to T2 with `needs_human_urgent`; metric `budget_exceeded_p0_override` fires | None observed; tested in `test_budget_override.py` |
 | Lazy analyst bulk-FP poisoning the correction loop | Soft layer auto-applies operational signal + verdict cap; hard layer (`forced_human_review`) requires detection-engineering ack | None observed; tested in `test_correction_loop.py` |
 | Stale-clean threat intel treated as benign | Threat intel evidence carries `cached_at`, `last_seen`, `provider_confidence`, `conflicts[]`; the reasoning prompt is instructed that stale clean ≠ benign; eval adversarial case `adv_06` probes this | LLM may still err on novel cases; calibration loop catches over time |
@@ -320,7 +335,7 @@ demos aren't.
   vendor; the protocol is documented (§5.3).
 - **Storm grouper state is in-memory.** Production requires Redis with atomic
   INCR + TTL across multi-worker deployments; the prototype is single-worker
-  by construction and tested with a singleton (§4.3 / R2).
+  by construction and tested with a singleton.
 - **Per-source enrichment caps are hardcoded.** Production needs per-tenant
   configurability for forensic-grade triage vs. latency-floor deployments.
 - **Audit redaction patterns are a prototype subset.** Production needs
@@ -343,11 +358,11 @@ demos aren't.
 
 The harness runs three systems against a 30-alert gold dataset (6 per family
 × 5 families: impossible_travel, ransomware, c2_callback, dns_exfil,
-privilege_escalation) plus a 12-alert adversarial set (categories named in
-RECONCILED.md §8). The systems are: SUT (full pipeline with synthetic LLM),
-naive baseline (single-call), and rule-only baseline (Sigma-style).
+privilege_escalation) plus a 12-alert adversarial set. The systems are: SUT
+(full pipeline with synthetic LLM), naive baseline (single-call), and
+rule-only baseline (Sigma-style).
 
-The metrics report (latest run committed to `eval/reports/`) covers:
+The metrics report (regenerated under `eval/reports/` on every `uv run eval`) covers:
 
 - Verdict accuracy (exact + adjacent-correct)
 - Severity MAE across tiers
@@ -364,42 +379,42 @@ Live-API verdict accuracy requires a captured fixture run; the
 `AnthropicClient` implementation is exercised in the walkthrough notebook
 specifically to seed that capture.
 
-### 8.1 Two metrics worth explaining honestly
+### 8.1 Known measurement limits
 
 **Action validity rate (eval reports 1.000; the number is misleading).** The
 synthetic test client emits `expected_primary_action` from the gold label
-into the recommendation slot by construction, so action validity tautologically
-hits 1.000. That is not a real measurement of model action selection. A
-live-model run would produce a meaningful number — the architectural defense
-(closed action enum + recommendation-cites-inference contract + validator's
-allowlist check at `src/triage/validation/validator.py`) is the real
-production guarantee and is exercised by `tests/test_validator.py`. The §8
-0.70 target is the threshold a live-model run should clear; the eval
-synthetic does not measure against it.
+into the recommendation slot by construction, so action validity reports
+1.000 as a side-effect of the test client, not as a measurement. A live-model
+run would produce a meaningful number — the structural defense (closed action
+enum + recommendation-cites-inference contract + validator's allowlist check
+at `src/triage/validation/validator.py`) is what enforces correctness in
+production and is exercised by `tests/test_validator.py`. The §8 0.70
+target is the threshold a live-model run should clear; the eval synthetic
+does not measure against it.
 
-**Cost per alert (eval reports $0.020 vs the §8 $0.015 target).** This is
-the architectural upper bound, not a representative production number. All
-30 eval alerts route to T2 because the synthetic gold set contains no
-rule-prefilter-eligible patterns. Production deployment with detection-
-engineering tuning catches roughly 30% of alerts at the rule prefilter
-(zero LLM cost) and another 10-30% at the T1-fast path (Haiku-only at
-~$0.0005). Storm grouping further reduces blended cost during burst
-windows. The eval measures the worst-case T2-only path; the tiered routing
-architecture makes the production case substantially cheaper. The cost
-ratio against the naive single-Sonnet baseline (the SUT is roughly 5-8x
-cheaper than naive after accounting for the rule-prefilter mix that
-production sees) holds either way.
+**Cost per alert measured at $0.020 against a $0.015 target.** The
+measured number is the architectural upper bound under the eval's
+T2-only routing mix, not a production projection. All 30 gold alerts
+route to T2 because the synthetic gold set contains no
+rule-prefilter-eligible patterns. The two structurally cheap routing
+paths — rule prefilter (zero LLM) and storm grouping (member alerts
+attach after the burst threshold trips) — are unused in the eval and
+therefore unmeasured here. Production cost depends on the customer's
+rule-prefilter coverage and burst characteristics. The independently
+measurable claim — that the SUT is roughly 5-8x cheaper than the
+single-Sonnet naive baseline — holds in the eval. The deterministic T1
+adds zero LLM cost; the spend starts at T2.
 
 ## 9. What I would build next
 
 - A second source adapter (CrowdStrike) to exercise the cross-vendor severity
-  calibration question (§3 / §11 production work)
+  calibration question
 - Redis-backed storm grouper for multi-worker deployment
 - Per-tenant runbook trust scoring before runbooks join the prompt context
 - A drift-detection eval gate in CI that compares each release's gold-set
   report to the prior baseline
-- Per-tenant prompt fine-tuning (with data-governance prerequisites
-  documented per §12 of the reconciled contract)
+- Per-tenant prompt fine-tuning (with explicit data-governance
+  prerequisites)
 - Auto-generation of source adapters from vendor schema exports
 
 ---

@@ -1,4 +1,4 @@
-"""Eval metrics + calibration analysis per RECONCILED §8.
+"""Eval metrics + calibration analysis.
 
 Metrics computed:
   * verdict_accuracy_exact — exact verdict match

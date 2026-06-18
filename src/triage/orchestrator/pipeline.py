@@ -1,23 +1,23 @@
 """End-to-end triage pipeline orchestrator.
 
-Wires the components built across Days 1-4 into a single triage() function
-the FastAPI surface and the notebook walkthrough both consume.
+Wires the components into a single triage() function the FastAPI surface
+and the notebook walkthrough both consume.
 
 Flow:
-  Okta-shaped JSON
+  Vendor-shaped JSON
       → SourceAdapter (canonical AlertEvent)
       → StormGrouper (incident_group or individual)
+      → T1 pre_classify (deterministic YAML lookup → InvestigationPlan)
       → router.route() (RouteDecision)
-      → T1 pre_classify (InvestigationPlan)
       → enrichment fan-out (EvidenceBundle with spans)
-      → T2 reason() (LLM response + plan_extensions)
-      → validator (TriageVerdict OR hardcoded needs_human per R6)
+      → T2 reason() (Sonnet response + plan_extensions)
+      → validator (TriageVerdict OR hardcoded needs_human on terminal fail)
       → AuditLedger.record()
 
 The orchestrator is provider-agnostic: it accepts any LLMClient. The
-FastAPI surface picks FixtureReplayClient by default (no API key needed
-for the panel) and switches to AnthropicClient when ANTHROPIC_API_KEY
-is in env and TRIAGE_LIVE_LLM=1.
+FastAPI surface picks FixtureReplayClient by default (no API key needed)
+and switches to AnthropicClient when ANTHROPIC_API_KEY is in env and
+TRIAGE_LIVE_LLM=1.
 """
 
 from __future__ import annotations
@@ -50,7 +50,6 @@ from triage.schemas.verdict import (
 from triage.validation.validator import (
     ValidationOutcome,
     run_with_terminal_failsafe,
-    validate_response,
 )
 
 
@@ -108,7 +107,7 @@ def triage(
         )
 
     # 2. Storm grouping. Group attaches return early with the group's verdict
-    #    (the sample alert's verdict applied to all members) per §4.3.
+    #    (the sample alert's verdict applied to all members).
     storm = get_storm_grouper()
     decision = storm.classify(alert)
     if decision.is_group_attach and decision.group is not None:
@@ -137,8 +136,8 @@ def triage(
             degraded_reason="storm_mode",
         )
 
-    # 3. T1 pre-classifier + deterministic routing.
-    classification = pre_classify(alert, client, plan_registry)
+    # 3. T1 deterministic plan resolver + routing.
+    classification = pre_classify(alert, plan_registry)
     route_decision = route(alert, classification, budget)
     plan = classification.investigation_plan
 
@@ -180,19 +179,31 @@ def triage(
     )
 
     # 6. Output validator with terminal failsafe (no exception on double-fail).
+    # T1 is deterministic (no LLM); model_chain reflects the actual LLM stages
+    # that ran. T1 contributes zero tokens and zero cost.
     ai_metadata = AIMetadata(
         route_tier="standard_t2",
-        model_chain=[classification.tier_recommendation, "sonnet"],
-        cost_usd=classification.cost_usd + response.cost_usd,
+        model_chain=["sonnet"],
+        cost_usd=response.cost_usd,
         tokens={
-            "prompt": classification.tokens_in + response.tokens_in,
-            "completion": classification.tokens_out + response.tokens_out,
+            "prompt": response.tokens_in,
+            "completion": response.tokens_out,
         },
         enrichments_failed=list(augmented_bundle.enrichments_failed),
     )
-    outcome = validate_response(
-        response.content,
-        augmented_bundle,
+    def _retry_t2() -> str:
+        # If validation fails, re-prompt T2 once with the same inputs. The
+        # reasoning agent is responsible for the strictness signal; the
+        # orchestrator's job is to bound the retry to one attempt.
+        retry_response, _retry_bundle, _retry_ext = reason(
+            alert, plan, augmented_bundle, client, sources=sources
+        )
+        return retry_response.content
+
+    outcome = run_with_terminal_failsafe(
+        first_response_content=response.content,
+        retry_callable=_retry_t2,
+        bundle=augmented_bundle,
         triage_id=f"triage_{alert.alert_id}",
         tenant_id=alert.tenant_id,
         alert_id=alert.alert_id,

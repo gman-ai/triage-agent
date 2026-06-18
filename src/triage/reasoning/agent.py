@@ -1,4 +1,4 @@
-"""T2 reasoning agent per RECONCILED §6 + §4.4 + D9-D12 + R8.
+"""T2 reasoning agent.
 
 Inputs: CanonicalAlertEvent + InvestigationPlan + EvidenceBundle + LLM client.
 Outputs: raw model response (handed to the validator) + plan_extensions log
@@ -8,9 +8,9 @@ T2 NEVER acts on the world; the only tool exposed is request_additional_source
 which the orchestrator handles by routing through the enrichment fan-out.
 
 Plan-extension loop bounds:
-- Hard cap of 2 extensions per alert (DESIGN ONLY #16 sets this knob; the
-  prototype uses a constant). Beyond the cap, T2's tool_use is ignored and
-  the agent is asked to produce a final verdict with what it has.
+- Hard cap of 2 extensions per alert (constant in the prototype). Beyond
+  the cap, T2's tool_use is ignored and the agent is asked to produce a
+  final verdict with what it has.
 - Each extension goes through the SAME tier policy as the initial fan-out;
   request_additional_source can target a tier outside the plan (cold), but
   the orchestrator-level budget envelope decides whether to grant it.

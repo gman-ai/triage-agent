@@ -1,4 +1,4 @@
-"""Acceptance gate: Okta source adapter per IMPL #2 + RECONCILED §4.2.
+"""Okta source adapter tests.
 
 Proves the adapter produces a canonical event from a clean Okta payload AND
 correctly identifies/labels itself with a version string. Drift behavior is

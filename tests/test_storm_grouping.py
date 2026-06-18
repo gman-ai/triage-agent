@@ -1,8 +1,8 @@
-"""Acceptance gate: storm grouper per RECONCILED §4.3 (R2) + IMPL #3.
+"""Storm grouper tests.
 
-1000-alert burst where 950 share the grouping key, 50 are distinct. Expectation
-per §4.3: the LLM-tier path observes a single IncidentGroup for the 950, and
-the 50 distinct alerts route individually.
+1000-alert burst where 950 share the grouping key, 50 are distinct. The
+LLM-tier path observes a single IncidentGroup for the 950, and the 50
+distinct alerts route individually.
 
 The test stays inside the grouping boundary; it does NOT call the LLM. It
 asserts on the grouper's classification decisions.

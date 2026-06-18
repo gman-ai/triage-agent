@@ -1,7 +1,7 @@
 """Identity store enrichment mock.
 
-storage_tier=hot per v1.3 directive: identity rows are SIEM-resident.
-record_cap=5 per §4.8; sort by recency DESC (last_seen).
+storage_tier=hot: identity rows are SIEM-resident.
+record_cap=5; sort by recency DESC (last_seen).
 
 Like asset_cmdb, two tenants seed identical entity IDs (u_acct_lead in both,
 different roles) so cross-tenant leakage at the fan-out boundary is detectable.

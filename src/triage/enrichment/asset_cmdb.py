@@ -1,7 +1,7 @@
 """Asset CMDB enrichment mock.
 
-storage_tier=hot per v1.3 directive: asset metadata is indexed for fast lookup.
-record_cap=10 per §4.8; sort by criticality DESC, then last_seen DESC.
+storage_tier=hot: asset metadata is indexed for fast lookup.
+record_cap=10; sort by criticality DESC, then last_seen DESC.
 
 Per-tenant seed data: two tenants with deliberately identical entity IDs
 (host srv_billing_01 owned by both tenants, different roles) to make any

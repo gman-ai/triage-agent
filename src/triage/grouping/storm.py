@@ -1,7 +1,7 @@
-"""Storm grouper per RECONCILED §4.3 (R2).
+"""Storm grouper.
 
 Collapses bursts of similar alerts into a single IncidentGroup before the LLM
-tier runs. Grouping key per the contract:
+tier runs. Grouping key:
 
     (tenant_id, rule_id, source_system, primary_entity, primary_ioc, time_window_5min)
 
@@ -17,7 +17,7 @@ Behavior:
       sample alert.
     * A grouping key transitions to group mode after `threshold_per_window`
       alerts arrive within `window_seconds`. The default threshold is 10 per
-      5 minutes, matching the §4.3 acceptance test.
+      5 minutes.
     * The window is sliding: counters expire when no alert with that key has
       been seen for `window_seconds`.
 """

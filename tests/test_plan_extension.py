@@ -1,5 +1,4 @@
-"""Acceptance gate: T2 plan extension via request_additional_source per
-RECONCILED §5.1 + R8.
+"""T2 plan extension tests via request_additional_source.
 
 T2 emits a tool_use response on the first pass; the orchestrator fetches the
 requested source, appends to the bundle, logs the extension, and re-prompts
@@ -185,7 +184,7 @@ def test_extension_loop_stops_at_hard_cap():
 def test_unknown_source_request_is_rejected_in_extension_log():
     """T2 requests a source_type the registry doesn't know. The orchestrator
     logs the rejection in plan_extensions and continues. The fan-out boundary
-    soft-fails per Day 2 contract.
+    soft-fails.
     """
     alert = _alert()
     plan_registry = PlanTemplateRegistry()

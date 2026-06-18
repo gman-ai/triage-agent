@@ -1,8 +1,8 @@
-"""Acceptance gate: enrichment fan-out spans per Codex Day 2 fold-in.
+"""Enrichment fan-out span tests.
 
 The verdict layer's `enrichments_failed: list[source_type]` is unchanged.
-What's new: per-source spans with error_type, error_message, retry_count,
-latency_ms. SRE can now reconstruct WHY a source failed.
+Per-source spans carry error_type, error_message, retry_count, latency_ms.
+SRE can reconstruct WHY a source failed.
 """
 
 from __future__ import annotations

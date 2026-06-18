@@ -1,11 +1,10 @@
-"""Audit redaction patterns per RECONCILED §4.5 + DESIGN ONLY #5.
+"""Audit redaction patterns.
 
-The prototype implements regex-based redaction for known secret shapes
-(AWS keys + bearer tokens). DESIGN.md notes that production needs full
-secret-scanning (Gitleaks-style + envelope encryption + per-tenant key
-management). The redaction logic ships behind the `forensic_30d`
-retention class — raw payloads are only stored under that policy, and
-redaction runs on store, not on read.
+Regex-based redaction for known secret shapes (AWS keys + bearer tokens).
+Production would need full secret-scanning (Gitleaks-style + envelope
+encryption + per-tenant key management). The redaction logic ships behind
+the `forensic_30d` retention class — raw payloads are only stored under
+that policy, and redaction runs on store, not on read.
 """
 
 from __future__ import annotations

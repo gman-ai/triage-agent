@@ -1,4 +1,4 @@
-"""Acceptance gate: schema drift handling per RECONCILED §4.2 (R4) + IMPL #2.
+"""Schema drift handling tests.
 
 Four variants:
   1. Clean v1 payload  → canonical event, no drift flags.
@@ -7,9 +7,8 @@ Four variants:
                          is NOT downgraded (no flag implies downgrade).
   4. Unknown source    → UnknownSourceError raised by the registry.
 
-This is the most consequential test in Day 1: it locks the behavior that
-distinguishes vendor benign field additions (don't drown the SOC) from a
-schema break (do quarantine).
+This is the load-bearing test that distinguishes vendor benign field
+additions (don't drown the SOC) from a schema break (do quarantine).
 """
 
 from __future__ import annotations

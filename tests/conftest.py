@@ -1,4 +1,4 @@
-"""Shared pytest fixtures for Day 1 acceptance gates."""
+"""Shared pytest fixtures."""
 
 from __future__ import annotations
 

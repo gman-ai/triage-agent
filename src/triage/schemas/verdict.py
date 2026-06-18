@@ -1,4 +1,4 @@
-"""TriageVerdict schema per RECONCILED §7.
+"""TriageVerdict schema.
 
 Closed-vocabulary output. Every claim is structurally grounded:
   * observed_facts cite a retrieval_id + field_path + expected_value
@@ -55,7 +55,7 @@ ActionType = Literal[
     "force_password_reset",
 ]
 
-RouteTier = Literal["rule_prefilter", "fast_t1", "standard_t2", "deep_t3", "storm_group"]
+RouteTier = Literal["rule_prefilter", "standard_t2", "deep_t3", "storm_group"]
 
 
 class ObservedFact(BaseModel):
@@ -136,7 +136,7 @@ class TriageVerdict(BaseModel):
     needs_human_urgent: bool = False
 
     audit_pointer: str = ""
-    correction_endpoint: str = "/api/v1/triage/{triage_id}/correct"
+    correction_endpoint: str = "/triage/{triage_id}/correct"
 
     ai_metadata: AIMetadata
 
@@ -153,9 +153,9 @@ def needs_human_terminal(
     audit_pointer: str = "",
     summary: str | None = None,
 ) -> TriageVerdict:
-    """Per R6: hardcoded structurally valid verdict for terminal validation
-    failure or unrecoverable degradation. The pipeline never raises uncaught;
-    it ships a verdict that surfaces the failure to the analyst.
+    """Hardcoded structurally valid verdict for terminal validation failure
+    or unrecoverable degradation. The pipeline never raises uncaught; it
+    ships a verdict that surfaces the failure to the analyst.
     """
     return TriageVerdict(
         triage_id=triage_id,

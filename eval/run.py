@@ -1,12 +1,12 @@
 """Eval entry point: `uv run eval`.
 
 Reads the gold + adversarial JSONL sets, runs three systems against them
-(SUT, naive baseline, rule-only baseline), computes the IMPL §8 metrics,
-and writes a Markdown report under eval/reports/.
+(SUT, naive baseline, rule-only baseline), computes metrics, and writes a
+Markdown report under eval/reports/.
 
 No live-API calls; the SUT uses EvalSyntheticClient which returns
-deterministic responses keyed on alert_id. DESIGN.md notes that the
-live-API run is captured separately on Day 5 (one notebook cell).
+deterministic responses keyed on alert_id. The live-API run is captured
+separately via the capture script.
 """
 
 from __future__ import annotations
@@ -95,7 +95,7 @@ def run_sut_on_alerts(rows: list[dict], plan_registry: PlanTemplateRegistry) -> 
     for row in rows:
         alert = to_alert(row)
         t0 = time.perf_counter_ns()
-        classification = pre_classify(alert, client, plan_registry)
+        classification = pre_classify(alert, plan_registry)
         plan = classification.investigation_plan
         query = SourceQuery(
             tenant_id=alert.tenant_id,
@@ -267,21 +267,22 @@ def write_report(
     lines.append(diagram)
     lines.append("```")
     lines.append("")
-    lines.append("## §8 targets vs measured (SUT)")
+    lines.append("## Targets vs measured (SUT)")
     lines.append("")
     targets = [
-        ("Verdict accuracy (exact) > 0.75", sut_metrics.verdict_accuracy_exact > 0.75),
-        ("Verdict accuracy (adjacent) > 0.90", sut_metrics.verdict_accuracy_adjacent > 0.90),
-        ("Severity MAE ≤ 1", sut_metrics.severity_mae <= 1),
-        ("Citation existence rate > 0.98", sut_metrics.citation_existence_rate > 0.98),
-        ("Action validity rate > 0.70", sut_metrics.action_validity_rate > 0.70),
-        ("Confidence calibration error < 0.10", sut_metrics.confidence_ece < 0.10),
-        ("Cost per alert < $0.015", sut_metrics.cost_mean_usd < 0.015),
-        ("Adversarial robustness > 0.85", adversarial_rate > 0.85),
+        ("Verdict accuracy (exact) > 0.75", sut_metrics.verdict_accuracy_exact > 0.75, True),
+        ("Verdict accuracy (adjacent) > 0.90", sut_metrics.verdict_accuracy_adjacent > 0.90, False),
+        ("Severity MAE ≤ 1", sut_metrics.severity_mae <= 1, False),
+        ("Citation existence rate > 0.98", sut_metrics.citation_existence_rate > 0.98, True),
+        ("Action validity rate > 0.70", sut_metrics.action_validity_rate > 0.70, False),
+        ("Confidence calibration error < 0.10", sut_metrics.confidence_ece < 0.10, True),
+        ("Cost per alert < $0.015 (non-gating; eval routes all alerts through T2)", sut_metrics.cost_mean_usd < 0.015, False),
+        ("Adversarial robustness > 0.85", adversarial_rate > 0.85, False),
     ]
-    for label, ok in targets:
+    for label, ok, gating in targets:
         marker = "✓" if ok else "✗"
-        lines.append(f"- {marker} {label}")
+        suffix = " *(gating)*" if gating else ""
+        lines.append(f"- {marker} {label}{suffix}")
     lines.append("")
     lines.append("## Notes")
     lines.append("")
@@ -297,29 +298,30 @@ def write_report(
     lines.append("### Two metrics worth explaining honestly")
     lines.append("")
     lines.append(
-        "**Action validity rate.** The synthetic emits the gold's "
-        "expected_primary_action by construction, so this metric "
-        "tautologically reports 1.000. It is not a real measurement of "
-        "model action selection. A live-model run produces the meaningful "
-        "number; the §8 0.70 target speaks to that. The architectural "
-        "defense (closed action enum + recommendation-cites-inference "
-        "contract + validator's allowlist check at "
-        "`src/triage/validation/validator.py`) is the production guarantee "
-        "and is exercised by `tests/test_validator.py`."
+        "**Action validity rate.** Known measurement limit. The synthetic "
+        "emits the gold's expected_primary_action by construction, so this "
+        "metric reports 1.000 as a side-effect of the test client, not as "
+        "a measurement of model action selection. A live-model run produces "
+        "the meaningful number; the 0.70 target speaks to that. The "
+        "structural defense (closed action enum + recommendation-cites-"
+        "inference contract + validator's allowlist check at "
+        "`src/triage/validation/validator.py`) is what enforces correctness "
+        "in production and is exercised by `tests/test_validator.py`."
     )
     lines.append("")
     lines.append(
-        "**Cost per alert.** This is the architectural upper bound. All 30 "
+        "**Cost per alert.** Non-gating in this report. The measured number "
+        "is the upper bound under the eval's T2-only routing mix — all 30 "
         "gold-set alerts route to T2 because the synthetic gold set "
-        "contains no rule-prefilter-eligible patterns. Production "
-        "deployment with detection-engineering tuning catches roughly 30% "
-        "of alerts at the rule prefilter (zero LLM cost) and another "
-        "10-30% at the T1-fast path (Haiku-only ~$0.0005). Storm grouping "
-        "further reduces blended cost during burst windows. The eval "
-        "measures the worst-case T2-only path; the tiered routing makes "
-        "the production case substantially cheaper. The ratio against the "
-        "naive single-Sonnet baseline (roughly 5-8x cheaper than naive "
-        "after accounting for the production rule-prefilter mix) holds."
+        "contains no rule-prefilter-eligible patterns, and storm grouping "
+        "does not exercise in single-alert eval runs. The two structurally "
+        "cheap routing paths (rule prefilter and storm grouping) are "
+        "therefore unmeasured here. Production cost depends on the "
+        "customer's rule-prefilter coverage and burst characteristics. "
+        "The independently measurable claim — the SUT is roughly 5-8x "
+        "cheaper than the single-Sonnet naive baseline — holds in this "
+        "eval. T1 deterministic plan resolution adds zero LLM cost; spend "
+        "starts at T2."
     )
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -368,13 +370,29 @@ def main() -> int:
         f"ece={sut_metrics.confidence_ece:.3f} "
         f"adv_pass={adv_rate:.3f}"
     )
-    if (
-        sut_metrics.verdict_accuracy_exact > 0.75
-        and sut_metrics.citation_existence_rate > 0.98
-        and sut_metrics.confidence_ece < 0.10
-    ):
-        return 0
-    return 0  # always 0; the report is the artifact, not a gate
+    # Gates. The report is always written; the exit code signals
+    # pass/fail so CI can block releases.
+    gate_failures: list[str] = []
+    if sut_metrics.verdict_accuracy_exact <= 0.75:
+        gate_failures.append(
+            f"verdict_accuracy_exact={sut_metrics.verdict_accuracy_exact:.3f} <= 0.75"
+        )
+    if sut_metrics.citation_existence_rate <= 0.98:
+        gate_failures.append(
+            f"citation_existence_rate={sut_metrics.citation_existence_rate:.3f} <= 0.98"
+        )
+    if sut_metrics.confidence_ece >= 0.10:
+        gate_failures.append(
+            f"confidence_ece={sut_metrics.confidence_ece:.3f} >= 0.10"
+        )
+
+    if gate_failures:
+        print("[eval] FAIL — gates not met:")
+        for msg in gate_failures:
+            print(f"  - {msg}")
+        return 1
+    print("[eval] PASS — all gates met")
+    return 0
 
 
 if __name__ == "__main__":

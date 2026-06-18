@@ -1,4 +1,4 @@
-"""Acceptance gate: output validator per IMPL #8 + RECONCILED §4.4.
+"""Output validator tests.
 
 Six malformed outputs rejected. Three layers of grounding defense exercised:
 schema, citation existence, citation support.

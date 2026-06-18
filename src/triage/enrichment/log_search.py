@@ -1,13 +1,11 @@
 """Log back-search enrichment mock.
 
-storage_tier=warm per v1.3 directive: log retention is operational, not
-SIEM-indexed.
-record_cap=50 per §4.8; sort by time_locality (proximity to the alert's
-detected_at).
+storage_tier=warm: log retention is operational, not SIEM-indexed.
+record_cap=50; sort by time_locality (proximity to the alert's detected_at).
 
-The plan templates for c2_callback and dns_exfil already reference log_search
-(RECONCILED §5.1). This source completes the registry so plan-gating runs
-end-to-end on those families.
+The plan templates for c2_callback and dns_exfil reference log_search.
+This source completes the registry so plan-gating runs end-to-end on
+those families.
 
 The mock synthesizes log lines around the alert's IOC: a base set of lines
 that flank the (synthetic) event window. Tests can request `synth_line_count`

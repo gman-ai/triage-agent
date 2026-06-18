@@ -1,8 +1,9 @@
 """EnrichmentSource protocol + shared base.
 
 Each source declares its `source_type` (matches SourceType in the plan
-schema), its `storage_tier` (per R9 / D33), and its per-source truncation
-contract (`record_cap` + `truncation_sort_key`). The `fetch()` method takes
+schema), its `storage_tier` (hot / warm / cold), and its per-source
+truncation contract (`record_cap` + `truncation_sort_key`). The `fetch()`
+method takes
 a tenant_id, an alert observable (the thing being looked up), and an
 optional failure_mode injection knob; it returns a list of RetrievalRef.
 

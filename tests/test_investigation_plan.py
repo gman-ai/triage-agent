@@ -1,90 +1,46 @@
-"""Acceptance gate: T1 emits a valid InvestigationPlan per family
-per IMPL #5 + RECONCILED §5.1.
+"""InvestigationPlan resolution tests.
 
-Specifically pins the two architectural exclusions from IMPL #5:
+T1 plan resolution is deterministic — the PlanTemplateRegistry loads YAML
+templates at startup and resolves plans per (rule_family, severity_hint).
+These tests pin the architectural exclusions and tier policies directly
+against the registry (the LLM no longer participates in plan emission).
+
+Pinned invariants:
   * impossible_travel plan excludes runbook KB
   * c2_callback plan excludes identity_store
-
-Plus the tier_preference exclusions from v1.3 / D34:
-  * No family default includes "cold"
+  * No family default tier_preference includes "cold"
+  * Each family seeds its expected required source
 """
 
 from __future__ import annotations
 
-import json
-from datetime import UTC, datetime
-
 import pytest
 
-from triage.classifier.pre_classify import build_t1_request, pre_classify
-from triage.llm.client import FixtureReplayClient
-from triage.schemas.alert import Asset, CanonicalAlertEvent
+from triage.schemas.plan_loader import PlanTemplateRegistry
 
 
-def _make_alert(rule_family: str) -> CanonicalAlertEvent:
-    return CanonicalAlertEvent(
-        tenant_id="tenant_a",
-        alert_id=f"alert_plan_{rule_family}",
-        source_system="okta",
-        source_adapter_version="okta_v1",
-        rule_id=f"okta.{rule_family}.v1",
-        rule_family=rule_family,
-        received_at=datetime(2026, 6, 15, 14, 32, 11, tzinfo=UTC),
-        detected_at=datetime(2026, 6, 15, 14, 32, 10, tzinfo=UTC),
-        severity_hint="P2",
-        primary_assets=[
-            Asset(asset_id="u_acct_lead", asset_type="user", tenant_id="tenant_a")
-        ],
-        summary=f"{rule_family} test",
-    )
+@pytest.fixture
+def registry() -> PlanTemplateRegistry:
+    return PlanTemplateRegistry()
 
 
-def _seed_fixture(tmp_path, alert, family):
-    request = build_t1_request(alert)
-    digest = request.digest()
-    payload = {
-        "content": json.dumps(
-            {
-                "severity_hint": "P2",
-                "alert_family": family,
-                "tier_recommendation": "standard_t2",
-                "confidence": 0.78,
-                "rationale": "fixture",
-                "override_plan": None,
-            }
-        ),
-        "stop_reason": "end_turn",
-        "tokens_in": 400,
-        "tokens_out": 100,
-        "cost_usd": 0.0003,
-        "model": "claude-haiku-4-5-20251001",
-    }
-    (tmp_path / f"{digest}.json").write_text(json.dumps(payload))
+def test_impossible_travel_plan_excludes_runbook(registry):
+    plan = registry.build_plan("impossible_travel", "P2")
+    assert "runbook" not in plan.all_planned_sources()
 
 
-def test_impossible_travel_plan_excludes_runbook(tmp_path):
-    alert = _make_alert("impossible_travel")
-    _seed_fixture(tmp_path, alert, "impossible_travel")
-    result = pre_classify(alert, FixtureReplayClient(fixture_dir=tmp_path))
-    assert "runbook" not in result.investigation_plan.all_planned_sources()
-
-
-def test_c2_callback_plan_excludes_identity_store(tmp_path):
-    alert = _make_alert("c2_callback")
-    _seed_fixture(tmp_path, alert, "c2_callback")
-    result = pre_classify(alert, FixtureReplayClient(fixture_dir=tmp_path))
-    assert "identity_store" not in result.investigation_plan.all_planned_sources()
+def test_c2_callback_plan_excludes_identity_store(registry):
+    plan = registry.build_plan("c2_callback", "P2")
+    assert "identity_store" not in plan.all_planned_sources()
 
 
 @pytest.mark.parametrize(
     "family",
     ["impossible_travel", "ransomware", "c2_callback", "dns_exfil", "privilege_escalation"],
 )
-def test_no_family_default_plan_has_cold_tier(tmp_path, family):
-    alert = _make_alert(family)
-    _seed_fixture(tmp_path, alert, family)
-    result = pre_classify(alert, FixtureReplayClient(fixture_dir=tmp_path))
-    assert "cold" not in result.investigation_plan.tier_preference
+def test_no_family_default_plan_has_cold_tier(registry, family):
+    plan = registry.build_plan(family, "P2")
+    assert "cold" not in plan.tier_preference
 
 
 @pytest.mark.parametrize(
@@ -97,8 +53,6 @@ def test_no_family_default_plan_has_cold_tier(tmp_path, family):
         ("privilege_escalation", "identity_store"),
     ],
 )
-def test_each_family_required_source_is_seeded(tmp_path, family, expected_required):
-    alert = _make_alert(family)
-    _seed_fixture(tmp_path, alert, family)
-    result = pre_classify(alert, FixtureReplayClient(fixture_dir=tmp_path))
-    assert expected_required in result.investigation_plan.required_sources
+def test_each_family_required_source_is_seeded(registry, family, expected_required):
+    plan = registry.build_plan(family, "P2")
+    assert expected_required in plan.required_sources

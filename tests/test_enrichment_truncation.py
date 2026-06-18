@@ -1,13 +1,13 @@
-"""Acceptance gate: enrichment truncation per RECONCILED §4.8 + R3.
+"""Enrichment truncation tests.
 
-The 500-record historical burst is the canonical test from §4.8: an
-indicator with 500 matching historical rows must return the per-source cap
-(10 for historical), the retrieval_truncated flag set, the truncation_sort_key
+The 500-record historical burst is the canonical test: an indicator with
+500 matching historical rows must return the per-source cap (10 for
+historical), the retrieval_truncated flag set, the truncation_sort_key
 disclosed, and total_available populated.
 
-The Day 3 reasoning prompt will reference these fields to tell the model the
-data is a sample sorted by `<key>`, so the model doesn't claim
-"comprehensive review" when it only saw the top N.
+The T2 reasoning prompt references these fields to tell the model the data
+is a sample sorted by `<key>`, so the model doesn't claim "comprehensive
+review" when it only saw the top N.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ def test_historical_500_record_burst_capped_at_record_cap():
     )
     refs = HISTORICAL.fetch(query)
 
-    # §4.8: result is capped at the per-source cap.
+    # Result is capped at the per-source cap.
     assert len(refs) == HISTORICAL.record_cap == 10
 
     # Every returned ref carries the truncation contract.

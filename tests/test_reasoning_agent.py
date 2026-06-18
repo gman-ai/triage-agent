@@ -1,10 +1,10 @@
-"""Acceptance gate: T2 reasoning agent end-to-end per IMPL #6 + RECONCILED §4.4.
+"""T2 reasoning agent end-to-end tests.
 
 One alert family (impossible_travel) goes through plan-gated fan-out → T2
 with a hand-crafted fixture-replay → validator. Asserts:
   * the response contains observed_facts citing retrievals in the bundle
   * the validator finds zero failures
-  * (D14) stale-clean threat intel does NOT produce likely_false_positive
+  * stale-clean threat intel does NOT produce likely_false_positive
 """
 
 from __future__ import annotations

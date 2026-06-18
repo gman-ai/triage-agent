@@ -1,4 +1,4 @@
-"""Smoke test: eval harness loads + produces a metrics report meeting §8 targets.
+"""Smoke test: eval harness loads + produces a metrics report.
 
 Not a per-metric assertion — that's what eval/run.py's report writer does. This
 test just confirms the harness can be imported and the gold + adversarial sets
@@ -111,8 +111,8 @@ def test_reports_dir_has_at_least_one_eval_run():
     reports = list(reports_dir.glob("eval_*.md"))
     if not reports:
         pytest.skip("reports dir empty; harness has not run")
-    # Read the latest report and confirm it contains the §8 marker section.
+    # Read the latest report and confirm it contains the marker sections.
     latest = max(reports, key=lambda p: p.stat().st_mtime)
     text = latest.read_text()
-    assert "§8 targets" in text
+    assert "Targets vs measured" in text
     assert "Reliability diagram" in text

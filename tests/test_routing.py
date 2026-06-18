@@ -1,4 +1,4 @@
-"""Acceptance gate: deterministic router per IMPL #4 + RECONCILED §6 + §4.6.
+"""Deterministic router tests.
 
 10+ cases proving the router is deterministic (no LLM in the router), that
 P0/P1 of deep families cannot be silently skipped on budget exhaustion, and
@@ -52,9 +52,11 @@ def _plan(family="impossible_travel") -> InvestigationPlan:
 def _classify(
     family="impossible_travel",
     severity="P2",
-    confidence=0.8,
+    confidence=1.0,
     tier_recommendation="standard_t2",
 ) -> T1Classification:
+    """Deterministic T1 shim always returns confidence=1.0; tests can override
+    to exercise the low-confidence branch of the router."""
     return T1Classification(
         severity_hint=severity,
         alert_family=family,
@@ -91,16 +93,6 @@ def test_rule_prefilter_known_malicious_returns_rule_to_t2():
     assert decision.hits_llm
 
 
-def test_t1_high_confidence_low_severity_routes_to_t1_fast():
-    decision = route(
-        _alert(severity="P4"),
-        _classify(family="impossible_travel", severity="P4", confidence=0.92),
-        _budget(),
-    )
-    assert decision.outcome == "t1_fast"
-    assert not decision.hits_llm
-
-
 def test_t1_low_confidence_routes_to_t2_standard():
     decision = route(
         _alert(),
@@ -130,7 +122,7 @@ def test_p1_in_deep_family_routes_escalate():
 
 
 def test_hard_budget_p0_overrides_to_t2_urgent():
-    """§4.6 + D16: budget exhaustion does NOT silently skip P0.
+    """Budget exhaustion does NOT silently skip P0.
     The alert routes to T2 with needs_human_urgent flagged.
     """
     decision = route(

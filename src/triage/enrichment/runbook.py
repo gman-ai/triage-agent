@@ -1,14 +1,13 @@
 """Runbook KB enrichment mock.
 
-storage_tier=warm per v1.3 directive: knowledge-base prose lives in warm
-operational storage.
-record_cap=3 per §4.8; sort by semantic_similarity DESC (mocked as a static
-relevance score keyed off rule_family).
+storage_tier=warm: knowledge-base prose lives in warm operational storage.
+record_cap=3; sort by semantic_similarity DESC (mocked as a static relevance
+score keyed off rule_family).
 
-Per §4.4 evidence-support contract, runbook prose is flagged human_verifiable
-in downstream evidence validation; this Day 2 mock just produces the
-RetrievalRef shape. The human_verifiable tagging logic lands Day 3 with the
-validator.
+Per the evidence-support contract, runbook prose is flagged
+human_verifiable in downstream evidence validation; this mock produces
+the RetrievalRef shape and the validator applies the human_verifiable
+tagging.
 """
 
 from __future__ import annotations

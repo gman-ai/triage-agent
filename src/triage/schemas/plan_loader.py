@@ -1,9 +1,8 @@
-"""Plan template loader for InvestigationPlan seeds per RECONCILED §5.1.
+"""Plan template loader for InvestigationPlan resolution.
 
 Loads fixtures/plan_templates.yaml at process start and exposes a
-build_plan(rule_family, severity_hint) helper. T1 (Day 3) calls this to
-seed its plan output; this Day 1 module makes the seeding deterministic
-and testable in isolation.
+build_plan(rule_family, severity_hint) helper. T1 calls this to resolve
+the plan deterministically.
 """
 
 from __future__ import annotations
@@ -55,7 +54,7 @@ class PlanTemplateRegistry:
             rationale=template["rationale"].strip(),
             plan_template_version=self._version,
         )
-        # R9 / D33: tier_preference is an optional template field. When seeded,
+        # tier_preference is an optional template field. When seeded,
         # the loader propagates it; when omitted, the InvestigationPlan default
         # ["hot", "warm", "cold"] applies.
         if "tier_preference" in template:

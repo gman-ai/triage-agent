@@ -1,4 +1,4 @@
-"""Deterministic router per RECONCILED §6 + D5 + §4.6.
+"""Deterministic router for the triage pipeline.
 
 Routing is in code, not in the LLM. The router consumes T1's classification
 plus per-tenant budget state and emits a typed RouteDecision the orchestrator
@@ -6,9 +6,9 @@ acts on:
 
   * "rule_fast" — rule prefilter matched a known-FP; emit fast verdict
   * "rule_to_t2" — rule prefilter matched a known-TP; route to T2 directly
-  * "t1_fast" — T1 confidence is high AND severity is low; emit fast verdict
   * "t2_standard" — bread and butter
-  * "t2_urgent" — P0/P1 deep families during budget exhaustion (D16 override)
+  * "t2_urgent" — P0/P1 deep families during budget exhaustion (severity-aware
+    override; the alert is forced through to T2 even past the hard cap)
   * "t2_escalate_if_low_conf" — high severity; check confidence at T2 exit
   * "skip_low_severity" — budget hard-cap reached, severity not P0/P1
   * "needs_human_urgent" — P0/P1 routed but with the urgent flag set
@@ -30,7 +30,6 @@ from triage.schemas.alert import CanonicalAlertEvent
 RouteOutcome = Literal[
     "rule_fast",
     "rule_to_t2",
-    "t1_fast",
     "t2_standard",
     "t2_urgent",
     "t2_escalate_if_low_conf",
@@ -44,10 +43,10 @@ class RouteDecision:
     needs_human_urgent: bool = False
     reason: str = ""
     metrics: list[str] = field(default_factory=list)
-    # Operator-facing telemetry counters per RECONCILED §4.6. Names match the
-    # contract: `budget_exceeded_p0_override` fires when budget is exhausted
-    # AND the alert is forced through to T2 anyway. The audit ledger persists
-    # them on the triage row so a per-tenant cost dashboard can sum them up.
+    # Operator-facing telemetry counters. `budget_exceeded_p0_override` fires
+    # when budget is exhausted AND the alert is forced through to T2 anyway.
+    # The audit ledger persists them on the triage row so a per-tenant cost
+    # dashboard can sum them up.
 
     @property
     def hits_llm(self) -> bool:
@@ -119,15 +118,6 @@ def route(
         return RouteDecision(
             outcome="t2_standard",
             reason="T1 low confidence; defense-in-depth standard T2",
-        )
-
-    if (
-        classification.severity_hint in {"P3", "P4"}
-        and classification.confidence > 0.85
-    ):
-        return RouteDecision(
-            outcome="t1_fast",
-            reason="low severity + high T1 confidence; fast path",
         )
 
     return RouteDecision(outcome="t2_standard", reason="standard tier")

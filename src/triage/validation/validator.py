@@ -1,4 +1,4 @@
-"""Output validator per RECONCILED §4.4 + D11/D12 + R6.
+"""Output validator.
 
 Three layers:
   1. Schema validation — Pydantic parse of the LLM JSON into TriageVerdict
@@ -7,7 +7,7 @@ Three layers:
      resolves and matches expected_value; for prose retrievals (runbook),
      evidence is flagged human_verifiable
 
-Terminal failure per R6:
+Terminal failure:
   After one retry, if the response STILL fails schema or support, the
   validator does NOT raise. It emits a hardcoded TriageVerdict with
   verdict=needs_human and degraded set. The pipeline never raises uncaught
@@ -140,7 +140,7 @@ def run_with_terminal_failsafe(
     ai_metadata: AIMetadata,
 ) -> ValidationOutcome:
     """Validate with one retry. If retry ALSO fails, emit the hardcoded
-    needs_human verdict per R6. The pipeline never raises at this boundary.
+    needs_human verdict. The pipeline never raises at this boundary.
 
     `retry_callable` is a no-arg function the caller binds with whatever it
     needs to re-prompt T2 with stricter instructions. It returns the new
@@ -191,7 +191,7 @@ def run_with_terminal_failsafe(
         retry_outcome.retried = True
         return retry_outcome
 
-    # Terminal: both attempts failed. Per R6, emit hardcoded needs_human.
+    # Terminal: both attempts failed. Emit hardcoded needs_human verdict.
     terminal_reason = (
         "validation_failure_support"
         if any(f.layer == "citation_support" for f in retry_outcome.failures)

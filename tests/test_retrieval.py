@@ -1,13 +1,13 @@
-"""Acceptance gate: enrichment sources per IMPL #9 + RECONCILED §4.8 + R9.
+"""Enrichment source tests.
 
-For each of the 5 sources mocked on Day 2:
+For each registered source:
   * clean path returns RetrievalRef instances with storage_tier set
   * timeout failure raises RetrievalTimeoutError
   * upstream 5xx failure raises RetrievalUpstreamError
   * malformed failure raises MalformedRetrievalError
 
-Also pins D14 evidence fields on threat_intel: provider, fetched_at,
-cached_at, first_seen, last_seen, provider_confidence, conflicts.
+Also pins evidence fields on threat_intel: provider, fetched_at, cached_at,
+first_seen, last_seen, provider_confidence, conflicts.
 """
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ def _query(tenant_id: str = "tenant_a", **overrides) -> SourceQuery:
 
 @pytest.mark.parametrize("name, source, tier, cap", ALL_SOURCES)
 def test_source_declares_storage_tier_and_record_cap(name, source, tier, cap):
-    """R9: each source declares its tier; §4.8: each source declares its cap."""
+    """Each source declares its storage tier and record cap."""
     assert source.storage_tier == tier, f"{name} expected tier={tier}"
     assert source.record_cap == cap, f"{name} expected record_cap={cap}"
     assert source.truncation_sort_key != ""
@@ -65,7 +65,7 @@ def test_source_clean_path_returns_refs_with_storage_tier(name, source, tier, ca
     assert isinstance(refs, list)
     # Asset/identity/threat_intel/runbook clean returns >=1 for the seeded
     # tenant_a query; historical also has seed entries. Any non-empty result
-    # carries storage_tier per R9.
+    # carries storage_tier.
     for ref in refs:
         assert ref.storage_tier == tier
         assert ref.fetched_at is not None
@@ -96,8 +96,8 @@ def test_source_malformed_raises(name, source, tier, cap):
     assert excinfo.value.reason != ""
 
 
-def test_threat_intel_evidence_fields_populated_per_d14():
-    """D14: provider, fetched_at, cached_at, first_seen, last_seen,
+def test_threat_intel_evidence_fields_populated():
+    """provider, fetched_at, cached_at, first_seen, last_seen,
     provider_confidence, conflicts are all populated for threat intel.
     """
     refs = threat_intel.INSTANCE.fetch(_query(tenant_id="tenant_b"))
@@ -129,7 +129,7 @@ def test_log_search_clean_path_returns_time_localized_lines():
 
 def test_log_search_synth_burst_truncates_at_50_with_flag():
     """500 synthesized lines → cap at 50 with retrieval_truncated=True and the
-    sort_key disclosure. Matches §4.8 truncation semantics for the 6th source.
+    sort_key disclosure. Matches truncation semantics for the 6th source.
     """
     query = SourceQuery(
         tenant_id="tenant_a",
@@ -158,10 +158,10 @@ def test_log_search_failure_modes_raise_typed_exceptions():
 
 def test_threat_intel_stale_clean_is_not_treated_as_benign_signal():
     """tenant_a sees the same IOC as 'unknown' with a 90-day-old cached_at.
-    The reasoning agent on Day 3 must not treat this as benign. Day 2 pins
-    the data shape that defends the claim: the ref has provider_confidence
-    < 0.5 AND cached_at is older than 30 days from fetched_at. Both signals
-    together are what makes "stale clean" distinct from "benign."
+    The reasoning agent must not treat this as benign. The data shape that
+    defends the claim: the ref has provider_confidence < 0.5 AND cached_at
+    is older than 30 days from fetched_at. Both signals together are what
+    makes "stale clean" distinct from "benign."
     """
     from datetime import timedelta
 
@@ -173,8 +173,8 @@ def test_threat_intel_stale_clean_is_not_treated_as_benign_signal():
     assert ref.provider_confidence is not None
     assert ref.provider_confidence < 0.5
     # cached_at is well in the past relative to fetched_at. The 30-day
-    # threshold is a Day-3 reasoning-prompt concern; here we pin that the
-    # mock returns staleness for the validator + reasoning tests to consume.
+    # threshold is a reasoning-prompt concern; here we pin that the mock
+    # returns staleness for the validator + reasoning tests to consume.
     assert ref.cached_at is not None
     age = ref.fetched_at - ref.cached_at
     assert age > timedelta(days=30), (

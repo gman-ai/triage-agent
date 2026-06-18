@@ -1,8 +1,8 @@
-"""Correction loop persistence + drift computation per RECONCILED §4.7 / R5.
+"""Correction loop persistence + drift computation.
 
 The soft layer (this module + policy.py) runs in the prototype. The hard
-layer endpoint is in endpoint.py and matches DESIGN ONLY #4: stubbed for
-the prototype with the surface the test exercises.
+layer endpoint is in endpoint.py: stubbed for the prototype with the
+surface the test exercises.
 
 Aggregation contract:
 - disagreement_rate(tenant, rule_family) returns the share of the last
@@ -22,9 +22,9 @@ from typing import Deque
 DEFAULT_THRESHOLD_PCT = 0.25
 DEFAULT_WINDOW_SIZE = 50
 PROTOTYPE_MIN_CORRECTIONS_FOR_TRIGGER = 8
-# §4.7 production uses min 50; the prototype reduces to 8 so test_correction
-# _loop.py can validate the threshold-trip behavior in a short sequence per
-# the IMPLEMENTATION_SCOPE.md acceptance gate. DESIGN.md notes the
+# Production would use min 50; the prototype reduces to 8 so test_correction
+# _loop.py can validate the threshold-trip behavior in a short sequence.
+# DESIGN.md notes the
 # production value (50 / 14d).
 
 

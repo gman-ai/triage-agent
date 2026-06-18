@@ -1,4 +1,4 @@
-"""Audit ledger per RECONCILED §4.5 + D15.
+"""Audit ledger.
 
 Each triage decision stores: triage_id, tenant_id, alert_id, prompt hashes,
 model chain, schema version, retrieval bundle hash, evidence source

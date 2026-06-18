@@ -1,4 +1,4 @@
-"""Acceptance gate: audit governance per IMPL #12 + RECONCILED §4.5.
+"""Audit governance tests.
 
 Three claims:
   1. `reconstruct_decision(triage_id)` returns the verdict + source pointers

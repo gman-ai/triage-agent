@@ -1,4 +1,4 @@
-"""Okta source adapter v1 per RECONCILED §4.2.
+"""Okta source adapter v1.
 
 Maps Okta-shaped JSON to CanonicalAlertEvent. Destructive drift = a required
 canonical field cannot be mapped from the documented paths. Additive drift =

@@ -1,10 +1,10 @@
 """Failure injection errors for enrichment sources.
 
-Each enrichment source supports three injected failure modes per §2 and the
-v1.3 directive: timeout (network silently slow), upstream 5xx (vendor API
-crashed), malformed (vendor returned non-JSON or schema-violating payload).
-The fan-out catches these and degrades the verdict via enrichments_failed[]
-rather than raising up the pipeline.
+Each enrichment source supports three injected failure modes: timeout
+(network silently slow), upstream 5xx (vendor API crashed), malformed
+(vendor returned non-JSON or schema-violating payload). The fan-out
+catches these and degrades the verdict via enrichments_failed[] rather
+than raising up the pipeline.
 """
 
 from __future__ import annotations

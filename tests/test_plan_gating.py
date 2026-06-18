@@ -1,4 +1,4 @@
-"""Acceptance gate: plan-gated tier-ordered fan-out per IMPL #9 + R8 + R9.
+"""Plan-gated tier-ordered fan-out tests.
 
 Three claims:
   1. Plan-gating — only sources listed in plan.all_planned_sources() are
@@ -30,9 +30,8 @@ def _query(tenant_id: str = "tenant_a") -> SourceQuery:
 
 def test_only_sources_in_plan_are_fetched():
     """The ransomware plan: required=[asset_cmdb, threat_intel, historical],
-    optional=[identity_store, runbook]. log_search is NOT in the plan; it's
-    also not in the Day 2 registry, but the assertion holds for any source
-    not in plan.
+    optional=[identity_store, runbook]. log_search is NOT in the plan;
+    the assertion holds for any source not in the plan.
     """
     registry = PlanTemplateRegistry()
     plan = registry.build_plan("ransomware", "P1")
@@ -115,10 +114,10 @@ def test_per_source_failure_is_contained_and_logged():
 
 
 def test_per_source_failure_span_carries_full_error_detail():
-    """Per Codex Day 2 fold-in / Day 4 directive: when a source fails inside
-    plan-gated fan-out, the bundle's span carries source_type, storage_tier,
-    failure_mode, exception_class, exception_message, status_code (when HTTP),
-    attempt_count, latency_ms. The verdict-layer `enrichments_failed` stays
+    """When a source fails inside plan-gated fan-out, the bundle's span
+    carries source_type, storage_tier, failure_mode, exception_class,
+    exception_message, status_code (when HTTP), attempt_count, latency_ms.
+    The verdict-layer `enrichments_failed` stays
     flat; this is the SRE-facing surface.
     """
     registry = PlanTemplateRegistry()

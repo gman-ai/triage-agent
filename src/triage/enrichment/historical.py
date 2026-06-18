@@ -1,7 +1,7 @@
 """Historical alerts enrichment mock.
 
-storage_tier=warm per v1.3 directive: pipeline-resident operational logs.
-record_cap=10 per §4.8; sort by severity DESC, occurred_at DESC.
+storage_tier=warm: pipeline-resident operational logs.
+record_cap=10; sort by severity DESC, occurred_at DESC.
 
 The 500-record truncation acceptance gate (test_enrichment_truncation.py)
 exercises this source. The mock supports a `synth_burst_count` parameter so

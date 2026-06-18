@@ -1,9 +1,9 @@
-"""Acceptance gate: severity-aware budget override per IMPL #4 + §4.6.
+"""Severity-aware budget override tests.
 
-The §4.6 contract: budget exhaustion does NOT silently skip P0 alerts. A
-ransomware-family P0 during exhausted budget routes to T2 with
-needs_human_urgent AND emits `budget_exceeded_p0_override` as a routing
-metric. The audit ledger persists the metric on the triage row.
+Budget exhaustion does NOT silently skip P0 alerts. A ransomware-family P0
+during exhausted budget routes to T2 with needs_human_urgent AND emits
+`budget_exceeded_p0_override` as a routing metric. The audit ledger
+persists the metric on the triage row.
 """
 
 from __future__ import annotations
@@ -60,7 +60,7 @@ def _t1(family: str, severity: str, confidence: float = 0.85) -> T1Classificatio
 
 
 def test_p0_ransomware_during_exhausted_budget_overrides_with_metric():
-    """§4.6: budget hard-cap reached; P0 ransomware still reaches T2 with
+    """Budget hard-cap reached; P0 ransomware still reaches T2 with
     needs_human_urgent AND budget_exceeded_p0_override metric.
     """
     decision = route(
@@ -84,7 +84,7 @@ def test_p1_privesc_during_exhausted_budget_overrides_with_metric():
 
 
 def test_p3_during_exhausted_budget_skips_silently_in_telemetry():
-    """A P3 during budget exhaustion skips per §4.6. No P0 override metric
+    """A P3 during budget exhaustion is skipped. No P0 override metric
     fires — that telemetry is reserved for the override path.
     """
     decision = route(

@@ -4,8 +4,8 @@ from __future__ import annotations
 class DestructiveDriftError(Exception):
     """Required canonical field could not be mapped from source payload.
 
-    Treatment per RECONCILED §4.2 / R4: alert is quarantined with
-    verdict=needs_human, degraded=schema_drift. No LLM call, no budget consumed.
+    Treatment: alert is quarantined with verdict=needs_human,
+    degraded=schema_drift. No LLM call, no budget consumed.
     """
 
     def __init__(self, source_system: str, missing_field: str, attempted_paths: list[str]) -> None:
@@ -21,7 +21,7 @@ class DestructiveDriftError(Exception):
 class UnknownSourceError(Exception):
     """Source system has no registered adapter.
 
-    Treated as destructive drift per §4.2.
+    Treated as destructive drift.
     """
 
     def __init__(self, source_system: str) -> None:
@@ -32,7 +32,7 @@ class UnknownSourceError(Exception):
 class TenantIsolationError(Exception):
     """Cross-tenant access attempt detected at the storage boundary.
 
-    Last line of defense per §4.1; raised by the store when application code
+    Last line of defense; raised by the store when application code
     attempts to read with a tenant_id that does not match the row's tenant_id.
     """
 

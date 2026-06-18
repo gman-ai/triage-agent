@@ -1,4 +1,4 @@
-"""Acceptance gate: canonical alert contract per RECONCILED §5 + IMPL #1.
+"""Canonical alert contract tests.
 
 Proves the single shape the LLM and downstream see is enforceable. A schema
 that accepts any input dict is not a schema; the test pins the validation.

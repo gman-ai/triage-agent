@@ -1,10 +1,9 @@
-"""Acceptance gate: T2 reasoning end-to-end on all 5 alert families.
+"""T2 reasoning end-to-end on all 5 alert families.
 
-Day 3 proved the agent end-to-end on impossible_travel. Day 4 extends the
-coverage to the other four families: ransomware, c2_callback, dns_exfil,
+Coverage across impossible_travel, ransomware, c2_callback, dns_exfil,
 privilege_escalation. The agent code is identical across families — what
-differs is the seeded InvestigationPlan + the relevant evidence the fan-out
-returns for each family's source set.
+differs is the resolved InvestigationPlan + the relevant evidence the
+fan-out returns for each family's source set.
 
 Each test:
   1. Builds the canonical alert for the family

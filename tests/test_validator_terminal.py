@@ -1,12 +1,12 @@
-"""Acceptance gate: validator terminal failure per IMPL #8 + RECONCILED R6.
+"""Validator terminal-failure tests.
 
 Double-failure (first attempt and retry both fail) emits a hardcoded
 verdict=needs_human with degraded=validation_failure_schema or
 validation_failure_support. The pipeline NEVER raises uncaught at this
 boundary.
 
-This is the strongest single defense in the architecture: the assistant
-ships SOMETHING for every alert, never silently drops, never crashes the
+This is the strongest single defense in the architecture: the agent ships
+SOMETHING for every alert, never silently drops, never crashes the
 ingestion path.
 """
 
@@ -185,7 +185,7 @@ def test_retry_recovery_returns_ok_outcome():
 def test_retry_path_raising_is_caught_into_terminal_verdict():
     """If retry_callable itself raises (the model crashed mid-retry), the
     validator catches it and emits the hardcoded needs_human. Pipeline never
-    leaks an exception at the validation boundary per R6.
+    leaks an exception at the validation boundary.
     """
 
     def retry_raising():

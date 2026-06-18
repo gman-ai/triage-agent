@@ -1,7 +1,7 @@
 """Deterministic synthetic LLM for the eval harness.
 
-The eval doesn't call the live API (D2: panel runs `uv run eval` without
-ANTHROPIC_API_KEY). Instead, this client returns hand-shaped responses
+The eval doesn't call the live API — `uv run eval` runs without
+ANTHROPIC_API_KEY. Instead, this client returns hand-shaped responses
 keyed on the alert's structural features (rule_family, severity_hint,
 verdict expected).
 
@@ -28,7 +28,6 @@ import re
 from triage.llm.client import LLMRequest, LLMResponse
 
 SONNET_LIKE = "claude-sonnet-4-6"
-HAIKU_LIKE = "claude-haiku-4-5-20251001"
 
 
 def _alert_id_from_request(request: LLMRequest) -> str | None:
@@ -82,7 +81,7 @@ def synth_verdict_for(expected: str, alert_id: str) -> tuple[str, float]:
     Distribution: ~80% expected; ~15% adjacent; ~5% opposite.
     Confidence is tuned so the bucket-level accuracy tracks the bucket
     midpoint within +/-0.05 — keeps the SUT's expected calibration error
-    inside the §8 < 0.10 target.
+    inside the < 0.10 target.
     """
     jitter = _stable_jitter(alert_id)
     if jitter < 0.80:
@@ -134,35 +133,10 @@ class EvalSyntheticClient:
         return verdict, confidence
 
     def complete(self, request: LLMRequest) -> LLMResponse:
+        # T1 is now deterministic (no LLM); the eval client only synthesizes
+        # T2 Sonnet responses. T3 escalation has its own path in the harness.
         alert_id = _alert_id_from_request(request)
-        # Tier dispatch by model
-        if request.model.startswith("claude-haiku"):
-            return self._t1_response(alert_id, request)
         return self._t2_response(alert_id, request)
-
-    def _t1_response(self, alert_id: str | None, request: LLMRequest) -> LLMResponse:
-        labels = self._labels.get(alert_id or "", {})
-        family = labels.get("rule_family", "impossible_travel")
-        severity = labels.get("expected_severity") or labels.get("severity_hint", "P2")
-        content = json.dumps(
-            {
-                "severity_hint": severity,
-                "alert_family": family,
-                "tier_recommendation": "standard_t2",
-                "confidence": 0.78,
-                "rationale": f"Synthetic T1 for {alert_id}",
-                "override_plan": None,
-            }
-        )
-        return LLMResponse(
-            content=content,
-            stop_reason="end_turn",
-            tool_calls=[],
-            tokens_in=420,
-            tokens_out=110,
-            cost_usd=0.0005,
-            model=HAIKU_LIKE,
-        )
 
     def _t2_response(self, alert_id: str | None, request: LLMRequest) -> LLMResponse:
         labels = self._labels.get(alert_id or "", {})

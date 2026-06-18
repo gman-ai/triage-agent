@@ -1,4 +1,4 @@
-"""Adapter registry per RECONCILED §4.2.
+"""Adapter registry.
 
 Source systems with no registered adapter are treated as destructive drift:
 the alert is quarantined, no LLM call is made. A new vendor onboarding ships

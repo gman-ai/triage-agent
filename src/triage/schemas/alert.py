@@ -1,4 +1,4 @@
-"""Canonical alert contract per RECONCILED §5.
+"""Canonical alert contract.
 
 Source adapters translate vendor-specific payloads to this shape; everything
 downstream of the adapter layer (grouper, router, T1, T2, validator, audit)
@@ -54,7 +54,7 @@ class CanonicalAlertEvent(BaseModel):
     `source_adapter_version` is required so drift is auditable and reversible.
     `summary` is marked untrusted in the reasoning layer (prompt-injection vector).
     `raw_unknown_extras` captures fields the adapter could not map without
-    silently dropping them (additive drift per §4.2 / R4).
+    silently dropping them (additive drift).
     """
 
     tenant_id: str

@@ -1,7 +1,7 @@
-"""Plan-gated tier-ordered enrichment fan-out per R8 + R9.
+"""Plan-gated tier-ordered enrichment fan-out.
 
 Inputs:
-- InvestigationPlan: the typed plan emitted by T1 (R8).
+- InvestigationPlan: the typed plan resolved by T1.
 - SourceQuery: tenant + alert + observable details.
 - Registered EnrichmentSource instances (one per source_type).
 - Optional failure_modes dict: per-source FailureMode override for test
@@ -17,10 +17,10 @@ Behavior:
 - Failure containment: each source's exception is captured into
   EvidenceBundle.enrichments_failed[] and the fan-out continues. The
   pipeline never raises uncaught at this boundary.
-- Observability (Codex Day 2 review fold-in): each source attempt emits
-  an EnrichmentSpan with error_type, error_message, retry_count, and
-  latency_ms. The flat enrichments_failed[] keeps the verdict schema
-  clean; the spans[] carry the SRE-facing detail.
+- Observability: each source attempt emits an EnrichmentSpan with
+  error_type, error_message, retry_count, and latency_ms. The flat
+  enrichments_failed[] keeps the verdict schema clean; the spans[] carry
+  the SRE-facing detail.
 
 The result is an `EvidenceBundle` with the merged retrievals[] (the
 retrieval_id allowlist for the LLM), per-source failure flags, and a
@@ -174,9 +174,10 @@ def _extract_status_code(exc: Exception) -> int | None:
 def build_default_registry() -> dict[SourceType, EnrichmentSource]:
     """Default per-process source registry.
 
-    Day 2 ships the five sources named in IMPLEMENTATION_SCOPE.md item #9.
-    Day 3+ may extend (e.g. log_search), at which point this registry is the
-    single registration point — the fan-out reads from it.
+    The six registered sources (asset_cmdb, identity_store, historical,
+    threat_intel, runbook, log_search) cover the alert families shipped in
+    the prototype. The fan-out reads from this registry — adding a new
+    source means registering it here.
     """
     from triage.enrichment import (
         asset_cmdb,

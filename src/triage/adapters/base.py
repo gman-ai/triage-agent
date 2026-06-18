@@ -1,4 +1,4 @@
-"""SourceAdapter protocol per RECONCILED §4.2.
+"""SourceAdapter protocol.
 
 Adapters translate vendor-specific JSON to CanonicalAlertEvent. Each adapter
 is versioned so destructive drift surfaces as a quarantine signal an operator
