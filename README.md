@@ -53,9 +53,9 @@ during the build.
 uv run uvicorn triage.api.main:app --reload
 ```
 
-By default, the API uses deterministic synthetic LLM responses so `/triage`
-works locally without `ANTHROPIC_API_KEY`. The live Anthropic client is
-opt-in via the environment variables below.
+By default, the API uses deterministic local responses so the reviewer can
+inspect the structured verdict shape without an API key. The live Anthropic
+client is opt-in via the environment variables below.
 
 The service exposes:
 
@@ -69,16 +69,16 @@ The service exposes:
 In another terminal, smoke-test the local API:
 
 ```bash
-curl http://127.0.0.1:8000/health
+curl -s http://127.0.0.1:8000/health | uv run python -m json.tool
 
 uv run python -c 'import json; from pathlib import Path; payload=json.loads(Path("fixtures/okta/sample_v1_clean.json").read_text()); body={"raw_payload":payload,"tenant_id":"tenant_a","source_system":"okta"}; Path("/tmp/triage_api_smoke.json").write_text(json.dumps(body))'
 
-curl -X POST http://127.0.0.1:8000/triage \
+curl -s -X POST http://127.0.0.1:8000/triage \
   -H "Content-Type: application/json" \
-  --data-binary @/tmp/triage_api_smoke.json
+  --data-binary @/tmp/triage_api_smoke.json | uv run python -m json.tool
 ```
 
-Expected: `/health` reports `llm_client_mode: synthetic`, and `/triage` returns a structured verdict for `okta_evt_clean_0001`.
+Expected: `/health` reports `llm_client_mode: synthetic`, and `/triage` returns an expanded structured verdict for `okta_evt_clean_0001` with observed facts, inferences, recommendations, uncertainty, and audit pointer.
 
 To switch to the live Anthropic client:
 

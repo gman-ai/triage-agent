@@ -121,6 +121,17 @@ def test_triage_happy_path_with_injected_client(sequence_client_with_minimal_ver
     assert body["severity"] in {"P0", "P1", "P2", "P3", "P4"}
     assert "triage_id" in body
     assert body["audit_pointer"]
+    # Pin the analyst-facing contract: the response must expose the
+    # structured reasoning surface, not just the summary envelope.
+    for key in (
+        "observed_facts",
+        "inferences",
+        "recommendations",
+        "attack_chain",
+        "blast_radius",
+        "uncertainty",
+    ):
+        assert key in body, f"response missing analyst-facing field {key!r}"
 
 
 def test_triage_quarantines_unknown_source_without_hitting_llm():

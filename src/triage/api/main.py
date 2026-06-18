@@ -35,6 +35,12 @@ from triage.llm.client import (
     LLMClient,
 )
 from triage.orchestrator.pipeline import triage as run_triage
+from triage.schemas.verdict import (
+    AttackChain,
+    Inference,
+    ObservedFact,
+    Recommendation,
+)
 
 app = FastAPI(title="triage-agent", version="0.1.0")
 
@@ -82,6 +88,12 @@ class TriageResponse(BaseModel):
     degraded: str | None
     metrics: list[str]
     summary: str
+    observed_facts: list[ObservedFact]
+    inferences: list[Inference]
+    recommendations: list[Recommendation]
+    attack_chain: list[AttackChain]
+    blast_radius: dict
+    uncertainty: dict
     audit_pointer: str
 
 
@@ -127,6 +139,12 @@ def triage_endpoint(req: TriageRequest) -> TriageResponse:
         degraded=v.degraded,
         metrics=list(result.metrics),
         summary=v.summary,
+        observed_facts=v.observed_facts,
+        inferences=v.inferences,
+        recommendations=v.recommendations,
+        attack_chain=v.attack_chain,
+        blast_radius=v.blast_radius,
+        uncertainty=v.uncertainty,
         audit_pointer=v.audit_pointer or v.triage_id,
     )
 
