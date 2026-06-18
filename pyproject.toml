@@ -1,7 +1,7 @@
 [project]
 name = "triage-agent"
 version = "0.1.0"
-description = "Triage assistant for security alerts; in-stream enrichment, not chatbot."
+description = "Per-tenant SecOps alert triage service with plan-gated retrieval, grounded reasoning, and audit."
 requires-python = ">=3.12"
 dependencies = [
     "pydantic>=2.7",

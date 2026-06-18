@@ -66,6 +66,20 @@ The service exposes:
   detection-engineering ack (hard layer)
 - `GET /health` — liveness + LLM client mode
 
+In another terminal, smoke-test the local API:
+
+```bash
+curl http://127.0.0.1:8000/health
+
+uv run python -c 'import json; from pathlib import Path; payload=json.loads(Path("fixtures/okta/sample_v1_clean.json").read_text()); body={"raw_payload":payload,"tenant_id":"tenant_a","source_system":"okta"}; Path("/tmp/triage_api_smoke.json").write_text(json.dumps(body))'
+
+curl -X POST http://127.0.0.1:8000/triage \
+  -H "Content-Type: application/json" \
+  --data-binary @/tmp/triage_api_smoke.json
+```
+
+Expected: `/health` reports `llm_client_mode: synthetic`, and `/triage` returns a structured verdict for `okta_evt_clean_0001`.
+
 To switch to the live Anthropic client:
 
 ```bash
