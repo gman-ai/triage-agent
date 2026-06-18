@@ -10,10 +10,13 @@ This document is the architectural narrative. The structured commitment log
 — each load-bearing decision with rationale and rejected alternatives —
 lives in [`ARCHITECTURE-DECISIONS.md`](ARCHITECTURE-DECISIONS.md).
 
-The take-home brief asks for architecture and approach, key assumptions,
-tradeoffs, and limitations/failure modes. This document covers those
-directly: architecture and approach (§2), key assumptions (§1.1),
-tradeoffs (§5), and limitations/failure modes (§6–§7).
+The take-home brief asks for four things. This document covers them
+directly:
+
+- **Architecture and approach** → §2
+- **Key assumptions** → §1.1 (immediately below)
+- **Tradeoffs** → §5
+- **Limitations and failure modes** → §6–§7
 
 ## 1. Problem framing
 
