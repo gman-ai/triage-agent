@@ -21,7 +21,7 @@ before commit.
 
 ## Runtime model usage
 
-The prototype itself uses Anthropic models in three bounded places:
+The prototype has two bounded LLM reasoning stages, with deterministic T1 routing:
 
 - **T1 — deterministic.** YAML lookup keyed on `(rule_family,
   severity_hint)`. No LLM.
