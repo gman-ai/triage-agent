@@ -12,6 +12,7 @@ key required.
 
 ```bash
 uv sync
+uv run demo     # one alert through T1 -> enrichment -> T2 -> validation -> verdict
 uv run eval     # gold + adversarial sets; writes a report to eval/reports/
 uv run pytest   # 179 tests in ~1.5s
 ```

@@ -23,6 +23,7 @@ dev = [
 
 [project.scripts]
 eval = "eval.run:main"
+demo = "triage.demo:main"
 
 [build-system]
 requires = ["hatchling"]
