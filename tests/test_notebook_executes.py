@@ -65,7 +65,7 @@ def test_notebook_t3_cell_replays_captured_live_response(
 ) -> None:
     """The T3 cell's stdout shows the live-captured majority verdict line.
 
-    This pins the architectural decision documented in DESIGN.md §5.4:
+    This pins the architectural decision documented in the DESIGN.md §5 tradeoffs table:
     SequenceClient is fed with the response content loaded from the
     captured fixture file. If the cell ever reverts to digest-based
     FixtureReplayClient over the non-deterministic bundle, this test
