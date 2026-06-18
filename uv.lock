@@ -1191,38 +1191,41 @@ name = "triage-agent"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "pydantic" },
-    { name = "pyyaml" },
-]
-
-[package.optional-dependencies]
-dev = [
     { name = "anthropic" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "ipykernel" },
     { name = "nbclient" },
     { name = "nbformat" },
+    { name = "pydantic" },
+    { name = "pyyaml" },
+    { name = "uvicorn" },
+]
+
+[package.dev-dependencies]
+dev = [
     { name = "pytest" },
     { name = "pytest-cov" },
-    { name = "uvicorn" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "anthropic", marker = "extra == 'dev'", specifier = ">=0.40" },
-    { name = "fastapi", marker = "extra == 'dev'", specifier = ">=0.115" },
-    { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
-    { name = "ipykernel", marker = "extra == 'dev'", specifier = ">=6.29" },
-    { name = "nbclient", marker = "extra == 'dev'", specifier = ">=0.10" },
-    { name = "nbformat", marker = "extra == 'dev'", specifier = ">=5.10" },
+    { name = "anthropic", specifier = ">=0.40" },
+    { name = "fastapi", specifier = ">=0.115" },
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "ipykernel", specifier = ">=6.29" },
+    { name = "nbclient", specifier = ">=0.10" },
+    { name = "nbformat", specifier = ">=5.10" },
     { name = "pydantic", specifier = ">=2.7" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0" },
     { name = "pyyaml", specifier = ">=6.0" },
-    { name = "uvicorn", marker = "extra == 'dev'", specifier = ">=0.34" },
+    { name = "uvicorn", specifier = ">=0.34" },
 ]
-provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8.0" },
+    { name = "pytest-cov", specifier = ">=5.0" },
+]
 
 [[package]]
 name = "typing-extensions"

@@ -28,7 +28,7 @@ Requires Python 3.12 and [uv](https://docs.astral.sh/uv/).
 ```bash
 git clone <repo-url> triage-agent
 cd triage-agent
-uv sync --extra dev
+uv sync
 uv run eval     # runs gold + adversarial sets; writes a report to eval/reports/
 uv run pytest   # full suite (~1.5s)
 ```
