@@ -91,7 +91,7 @@ uv run uvicorn triage.api.main:app
 ## Walkthrough notebook
 
 [`notebook.ipynb`](notebook.ipynb) walks end-to-end on three sample alerts:
-impossible_travel (happy path), impossible_travel against stale-clean
+impossible_travel (happy path), impossible_travel against stale/unknown
 threat intel, and a ransomware P0 routing through T3 escalation. It renders
 on GitHub directly; run locally with `uv run jupyter lab notebook.ipynb` to
 re-execute the cells.
