@@ -10,6 +10,11 @@ This document is the architectural narrative. The structured commitment log
 — each load-bearing decision with rationale and rejected alternatives —
 lives in [`ARCHITECTURE-DECISIONS.md`](ARCHITECTURE-DECISIONS.md).
 
+The take-home brief asks for architecture and approach, key assumptions,
+tradeoffs, and limitations/failure modes. This document covers those
+directly: architecture and approach (§2), key assumptions (§1.1),
+tradeoffs (§5), and limitations/failure modes (§6–§7).
+
 ## 1. Problem framing
 
 A SOC analyst receives a SIEM alert. The question is not "what does this
@@ -78,6 +83,38 @@ selection are detection-engineering policy encoded in YAML.
   the existing SIEM workbench)
 - Operate as a conversational chatbot (one-shot triage returns a structured
   result; not multi-turn dialog)
+
+### 1.1 Key assumptions
+
+Four assumptions are load-bearing. If any is wrong for a deployment, the
+architecture changes.
+
+- **The analyst stays the decision-maker.** Triage's bottleneck is
+  cross-source context gathering, not alert comprehension. The verdict
+  schema separates `recommended_actions` (advisory) from any concept of
+  auto-execution; every recommendation ships `automatable: false`. The
+  audit ledger captures the analyst's correction rather than treating
+  the engine's verdict as final.
+
+- **Pipeline position is the data advantage.** The engine assumes read
+  access to telemetry already routed through the pipeline, including
+  cold-tier history a SIEM-resident tool can't reach cheaply. The
+  three-tier storage model (hot / warm / cold) is the architectural
+  expression of this; cold is opt-in via T2 plan extension, never the
+  default.
+
+- **Alert investigations are bounded.** Most alerts need one focused
+  evidence-gathering loop, not a long-running multi-agent investigation.
+  The engine uses one Sonnet reasoning pass with a
+  `request_additional_source` tool, capped at two plan extensions. If
+  alerts required cross-investigation coordination, a supervisor pattern
+  would become correct.
+
+- **Routing is deterministic, not learned.** First-pass tier selection
+  is YAML-resolved plans plus severity-aware overrides in code. LLMs
+  aren't trusted with control-plane decisions — which tier runs, which
+  source fires, when to escalate — only with reasoning over the
+  evidence those decisions surface.
 
 ## 2. Architecture and approach
 
