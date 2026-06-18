@@ -20,7 +20,7 @@ The companion design narrative lives in [`DESIGN.md`](DESIGN.md); this file is t
 
 **Choice.** The full evaluation harness runs on a clean checkout with `uv sync && uv run pytest` plus `uv run python -m eval.run`. No live API key required for tests; live API capture is an explicit opt-in via `scripts/capture_t3_fixture.py`.
 
-**Rationale.** A reviewer must be able to verify the system without provisioning hosted services or burning API credits. Determinism comes from a fixture-replay client (`SequenceClient` for the notebook, `FixtureReplayClient` for tests). The captured live-API fixture proves real Opus output without making every CI run an expensive API hit.
+**Rationale.** A reviewer must be able to verify the system without provisioning hosted services or burning API credits. Determinism comes from bounded local clients (`SequenceClient` for the notebook, `FixtureReplayClient` for tests, `EvalSyntheticClient` for eval and the default local API). The captured live-API fixture proves real Opus output without making every CI run an expensive API hit.
 
 **Rejects.** Hosted runtime as a precondition for evaluation. Reliance on a live API for tests.
 

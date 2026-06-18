@@ -7,9 +7,9 @@ Endpoints:
                                               — detection-engineering ack (hard layer)
   GET /health                                 — liveness + LLM client mode
 
-Defaults to FixtureReplayClient so the surface runs without ANTHROPIC_API_KEY.
-Set TRIAGE_LIVE_LLM=1 (and ANTHROPIC_API_KEY) to switch to AnthropicClient
-for live runs.
+Defaults to a deterministic synthetic client so the surface runs end-to-end
+without ANTHROPIC_API_KEY. Set TRIAGE_LIVE_LLM=1 (and ANTHROPIC_API_KEY) to
+switch to AnthropicClient for live runs.
 """
 
 from __future__ import annotations
@@ -29,9 +29,9 @@ from triage.corrections.endpoint import (
     submit_correction,
 )
 from triage.corrections.store import CorrectionStore
+from eval.synthetic_llm import EvalSyntheticClient
 from triage.llm.client import (
     AnthropicClient,
-    FixtureReplayClient,
     LLMClient,
 )
 from triage.orchestrator.pipeline import triage as run_triage
@@ -39,11 +39,28 @@ from triage.orchestrator.pipeline import triage as run_triage
 app = FastAPI(title="triage-agent", version="0.1.0")
 
 
+def _default_synthetic_labels() -> dict[str, dict]:
+    """Small label map for the shipped sample alert.
+
+    The default API mode is for portable local review. The sample Okta alert
+    should produce the same kind of analyst-facing verdict as `uv run demo`;
+    arbitrary alerts still fall back to EvalSyntheticClient's deterministic
+    unlabeled behavior.
+    """
+    return {
+        "okta_evt_clean_0001": {
+            "expected_verdict": "likely_true_positive",
+            "expected_severity": "P1",
+            "expected_primary_action": "force_password_reset",
+        }
+    }
+
+
 def _resolve_llm_client() -> tuple[LLMClient, str]:
     live = os.environ.get("TRIAGE_LIVE_LLM") == "1"
     if live and os.environ.get("ANTHROPIC_API_KEY"):
         return AnthropicClient(), "live"
-    return FixtureReplayClient(), "fixture_replay"
+    return EvalSyntheticClient(expected_by_alert_id=_default_synthetic_labels()), "synthetic"
 
 
 _AUDIT = AuditLedger()

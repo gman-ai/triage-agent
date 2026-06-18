@@ -1,9 +1,9 @@
-"""Deterministic synthetic LLM for the eval harness.
+"""Deterministic synthetic LLM for local eval and API review mode.
 
-The eval doesn't call the live API — `uv run eval` runs without
-ANTHROPIC_API_KEY. Instead, this client returns hand-shaped responses
-keyed on the alert's structural features (rule_family, severity_hint,
-verdict expected).
+The eval and default local API don't call the live API — `uv run eval` and
+`uv run uvicorn ...` run without ANTHROPIC_API_KEY. Instead, this client
+returns hand-shaped responses keyed on the alert's structural features
+(rule_family, severity_hint, verdict expected).
 
 The accuracy floor is intentionally below 1.0 — the synthetic client
 returns the expected verdict ~80% of the time, a calibration-adjacent
@@ -97,8 +97,9 @@ def synth_verdict_for(expected: str, alert_id: str) -> tuple[str, float]:
 class EvalSyntheticClient:
     """Returns deterministic responses keyed on alert_id.
 
-    Configure with the gold/adversarial label map at construction.
-    Production never instantiates this; only the eval harness does.
+    Configure with the gold/adversarial label map at construction. Passing an
+    empty label map is the portable local-API review mode; live production
+    sets TRIAGE_LIVE_LLM=1 and uses AnthropicClient instead.
     """
 
     def __init__(self, expected_by_alert_id: dict[str, dict]) -> None:

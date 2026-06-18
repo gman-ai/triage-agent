@@ -78,7 +78,7 @@ def test_health_returns_ok_with_llm_mode():
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "ok"
-    assert body["llm_client_mode"] in {"fixture_replay", "live"}
+    assert body["llm_client_mode"] in {"synthetic", "live"}
     assert body["version"] == "0.1.0"
 
 

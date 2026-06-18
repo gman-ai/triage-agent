@@ -20,8 +20,9 @@ uv run pytest   # 179 tests in ~1.5s
 Run `uv run eval` first on a fresh clone — one test asserts that a report
 exists, so a `pytest`-first run will show that test skipped.
 
-Tests use `FixtureReplayClient` and `SequenceClient`; eval uses
-`EvalSyntheticClient`. The live Anthropic path was exercised once and the
+Tests use `FixtureReplayClient` and `SequenceClient`; eval and the default
+local API use `EvalSyntheticClient` so review runs are deterministic and do
+not require an API key. The live Anthropic path was exercised once and the
 captured Opus response lives at
 [`fixtures/llm_replays/cd8a1be0d7d1e45f1148e61c.json`](fixtures/llm_replays/cd8a1be0d7d1e45f1148e61c.json)
 with `live_api: true`, `captured_at: 2026-06-16T04:29:49Z`, and real token
@@ -51,6 +52,10 @@ during the build.
 ```bash
 uv run uvicorn triage.api.main:app --reload
 ```
+
+By default, the API uses deterministic synthetic LLM responses so `/triage`
+works locally without `ANTHROPIC_API_KEY`. The live Anthropic client is
+opt-in via the environment variables below.
 
 The service exposes:
 
