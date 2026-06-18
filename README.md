@@ -5,7 +5,7 @@ storm grouping, deterministic routing, plan-gated enrichment across six
 structured sources, grounded reasoning with citation-support validation,
 and emits a structured `TriageVerdict`.
 
-## Three commands to evaluate
+## Reviewer quickstart
 
 Requires Python 3.12 and [uv](https://docs.astral.sh/uv/). No Anthropic API
 key required.
