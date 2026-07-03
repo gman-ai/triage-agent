@@ -1,9 +1,101 @@
 # triage-agent
 
-A SecOps triage service. The engine takes an alert in, runs normalization,
-storm grouping, deterministic routing, plan-gated enrichment across six
-structured sources, grounded reasoning with citation-support validation,
-and emits a structured `TriageVerdict`.
+A per-tenant SecOps alert triage service. Deterministic where determinism works, LLM-reasoned where evidence matters, citation-validated, audit-logged.
+
+**Signal.** 179 tests passing · 0.933 SUT exact-match · 0.085 ECE · 1.000 adversarial pass rate · 0 LLM control-plane calls. Full evidence in [DESIGN.md](DESIGN.md) and the numbered commitment log in [ARCHITECTURE-DECISIONS.md](ARCHITECTURE-DECISIONS.md) (34 decisions).
+
+---
+
+## What production failure mode does this solve?
+
+SIEM alerts land in the analyst's queue every few minutes. The bottleneck isn't reading the alert — it's pivoting across identity provider, threat intel, asset CMDB, historical alerts, runbooks, and log search to answer whether the alert is real, what the blast radius is if it is, and what action is justified. Manual pivoting is 10-15 minutes per alert.
+
+Existing options fail two different ways. Rule-based triage misses novel patterns and can't reason across evidence. Unbounded LLM-based triage is nondeterministic on control-plane decisions, expensive under bursts, and produces prose the SIEM workbench can't consume. This service splits the difference: deterministic tiers absorb the alerts that don't need reasoning; the LLM tier reasons only over evidence that was gathered by deterministic policy. Output is typed JSON the analyst's existing workbench renders directly.
+
+## What is deterministic vs LLM-mediated?
+
+The line is explicit and load-bearing. LLMs are not trusted with control-plane decisions — which tier runs, which source fires, when to escalate — only with reasoning over the evidence those decisions surface.
+
+**Deterministic (zero LLM cost):**
+- Rule prefilter — known-FP and known-TP patterns at the top of the router
+- Storm grouper — burst-window deduplication keyed on tenant + rule + source + entity + IOC + 5-min bucket
+- T1 plan resolver — YAML lookup on `(rule_family, severity_hint)` returns an `InvestigationPlan`; the plan names which of six sources fetch and in what tier order
+- Router — rule prefilter → per-tenant budget envelope → severity-aware override; P0 in deep families can never silently skip
+
+**LLM-mediated (Sonnet at T2, Opus at T3):**
+- T2 reasoning — Sonnet in forced-JSON mode over the enriched evidence bundle; can call `request_additional_source` up to two plan extensions per alert
+- T3 escalation — Opus, 3-sample self-consistency, fires only when T2 returns `confidence < 0.6` AND `severity in {P0, P1}` AND `rule_family in {ransomware, privilege_escalation, data_exfil, dns_exfil}`; terminal pass, no further plan extension
+
+`llm_control_plane_calls: 0` is measurable, not aspirational.
+
+## How are citations, evals, and validation enforced?
+
+Two layers, not one. Most published SOC agents validate citation **existence**: the model says it used source X; the orchestrator confirms source X was queried. This service adds citation **support**: every `observed_fact` carries `retrieval_id`, `field_path`, and `expected_value`. The validator walks the cited retrieval and confirms the field actually contained that value. Catches the "real ID, wrong content" attack that existence-only validation misses.
+
+**Numbers from `uv run eval` against the 30-alert gold set + 12-alert adversarial set:**
+
+| Metric | Value |
+|---|---|
+| SUT exact-match | 0.933 |
+| Adversarial pass rate | 1.000 |
+| Expected calibration error (ECE) | 0.085 |
+| Citation existence rate | 1.000 |
+| Cost per alert (SUT vs naive baseline) | 5-8× cheaper |
+| Tests | 179 passing (~1.5s) |
+
+Eval methodology in [DESIGN.md §8](DESIGN.md), including honest measurement limits in §8.1 (why action-validity 1.000 is misleading and what actually enforces correctness).
+
+## What breaks safely?
+
+Every named failure ships with a named mitigation and an explicit residual risk. The full matrix is in [DESIGN.md §6](DESIGN.md); the load-bearing four:
+
+- **LLM provider outage.** Pipeline never blocks. Fast-path verdicts continue; T2 path emits `degraded: llm_unavailable` with reduced confidence. Analyst sees the degrade flag, not a stalled queue.
+- **Schema or citation-support double-failure.** Validator emits a hardcoded `needs_human` verdict with `degraded: validation_failure_*`. The pipeline never raises uncaught. Analyst acts on the degrade signal.
+- **Budget exhaustion on P0.** Severity-aware override forces P0/P1 of deep families through to T2 with `needs_human_urgent`; metric `budget_exceeded_p0_override` fires. Tested in `test_budget_override.py`.
+- **Prompt injection via alert summary, runbook, or log lines.** Four layers stack: closed-vocabulary schema, retrieval-ID allowlist, citation support validation, and `automatable: false` on every recommendation. Adversarial eval set (12 alerts) probes exactly this class.
+
+Storm cost runaway, stale threat intel, tenant data leakage, hallucinated citations, lazy-analyst correction poisoning, and adversarial uploaded runbooks are all in the §6 matrix with named mitigations. `automatable: false` is the design default on every recommendation.
+
+## How does this generalize?
+
+The shape is: **structured input → deterministic prefilter → deterministic plan lookup → LLM-reasoned with citation-validated evidence → structured audit-logged output.** Any workflow that fits this shape gets the same architecture:
+
+- **AIOps alert triage** — same primitives; noise sources are asset registry, deployment log, runbook, historical incidents.
+- **Support ticket routing** — rule-based T1 handles known FAQs and product areas; LLM T2 reasons over the enriched ticket bundle with knowledge-base citations.
+- **Incident triage** — deterministic categorization + severity gate → LLM reasoning over evidence → structured post-mortem-ready output.
+- **Fraud triage, compliance review, medical claims triage** — same three-tier discipline; the domain sits in the YAML plans and the source registry, not in the engine.
+
+The engine is surface-agnostic by design (see §2 in DESIGN.md — trigger and emit are pluggable bookends). The pattern is portable; the domain is where the work lives.
+
+---
+
+## Architecture
+
+```mermaid
+flowchart TD
+    T[Trigger<br/>pipeline OR analyst-initiated]
+    A[Source Adapter<br/>versioned; destructive vs additive drift]
+    G[Storm Grouper<br/>tenant + rule + source + entity + IOC + 5-min bucket]
+    T1[T1 Plan Resolver<br/>YAML lookup on rule_family + severity_hint<br/><i>zero LLM cost</i>]
+    R{Deterministic Router<br/>rule prefilter + budget + severity override}
+    RF[rule_fast verdict<br/><i>no LLM</i>]
+    F[Plan-gated Fan-out<br/>6 sources · tier-ordered hot to warm<br/>cold opt-in via T2 plan extension]
+    T2[T2 Reasoning · Sonnet<br/>forced JSON schema<br/>request_additional_source tool]
+    T3[T3 Escalation · Opus<br/>3-sample self-consistency<br/>P0/P1 deep families only · terminal]
+    V[Output Validator<br/>schema then citation existence then citation support]
+    L[Audit Ledger<br/>hash-only default<br/>forensic_30d with regex redaction]
+    O[TriageVerdict · structured JSON]
+    E[Emit<br/>SIEM push OR API return]
+
+    T --> A --> G --> T1 --> R
+    R -->|known-FP or known-TP| RF --> V
+    R -->|standard, urgent, escalate| F --> T2
+    T2 -->|confident| V
+    T2 -->|low-conf + P0/P1 + deep family| T3 --> V
+    V --> L --> O --> E
+```
+
+Full flow diagram (ASCII, with return semantics) and per-node rationale in [DESIGN.md §2](DESIGN.md).
 
 ## Reviewer quickstart
 
@@ -28,6 +120,23 @@ captured Opus response lives at
 with `live_api: true`, `captured_at: 2026-06-16T04:29:49Z`, and real token
 counts in the fixture metadata. The notebook's T3 cell replays that
 captured response.
+
+## Production patterns demonstrated
+
+Named the way a JD would ask about them.
+
+- **Deterministic control plane, LLM data plane.** Routing, plan resolution, tier ordering, budget enforcement — zero LLM. Reasoning tier runs only over evidence gathered by deterministic policy. Measurable as `llm_control_plane_calls: 0`.
+- **Plan-gated retrieval.** T1 resolves an `InvestigationPlan` from YAML; fan-out fetches only listed sources; T2 extends the plan via a bounded `request_additional_source` tool call (capped at two extensions). Targeted-then-extend, not fetch-everything-then-reason.
+- **Tier-aware storage cost.** `RetrievalRef.storage_tier` ∈ {hot, warm, cold}; default plans exclude cold; cold is opt-in via T2 plan extension only.
+- **Multi-tier LLM escalation.** T2 Sonnet on the common path; T3 Opus with 3-sample self-consistency, terminal, only when `confidence < 0.6` AND `severity ∈ {P0, P1}` AND `rule_family` is in the deep-family set.
+- **Citation existence + citation support validation.** Two layers: source-queried check, then `field_path`-walks-and-confirms-`expected_value` check on the cited retrieval. Rejects "real ID, wrong content" attacks that existence-only validation misses.
+- **Closed-vocabulary structured verdict.** Pydantic `Literal` types on verdict, severity, action, MITRE tactic. Ungrounded outputs are structurally invalid; downstream automation matches exact strings.
+- **Audit ledger with retention class.** Default `hash_only`; raw payloads gated to `forensic_30d` with regex redaction (AWS keys, bearer tokens, generic API keys, PII).
+- **Per-tenant correction loop, soft plus hard.** Soft layer auto-caps verdict to `likely_*` on operational signal; hard layer requires detection-engineering acknowledgment. Lazy bulk-FP can't poison routing.
+- **Storm dedup.** Burst-window grouper keyed on tenant + rule + source + entity + IOC + 5-min bucket. Member alerts attach to an `IncidentGroup` and bypass the LLM tier.
+- **Deterministic eval harness.** `EvalSyntheticClient` makes eval reports reproducible across machines. `FixtureReplayClient` + `SequenceClient` keep the 179-test suite API-key-free.
+
+Each pattern is a numbered decision in [ARCHITECTURE-DECISIONS.md](ARCHITECTURE-DECISIONS.md) with the choice, the rationale, and what was rejected.
 
 ## What it is
 
