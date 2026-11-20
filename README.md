@@ -123,8 +123,6 @@ captured response.
 
 ## Production patterns demonstrated
 
-Named the way a JD would ask about them.
-
 - **Deterministic control plane, LLM data plane.** Routing, plan resolution, tier ordering, budget enforcement — zero LLM. Reasoning tier runs only over evidence gathered by deterministic policy. Measurable as `llm_control_plane_calls: 0`.
 - **Plan-gated retrieval.** T1 resolves an `InvestigationPlan` from YAML; fan-out fetches only listed sources; T2 extends the plan via a bounded `request_additional_source` tool call (capped at two extensions). Targeted-then-extend, not fetch-everything-then-reason.
 - **Tier-aware storage cost.** `RetrievalRef.storage_tier` ∈ {hot, warm, cold}; default plans exclude cold; cold is opt-in via T2 plan extension only.
